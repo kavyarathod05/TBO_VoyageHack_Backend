@@ -16,13 +16,13 @@ import (
 func main() {
 	godotenv.Load()
 
+	// Load Config
+	cfg := config.Load()
+
 	// Initialize Store
 	store.InitDB()
 
-	// Initialize Config
-	cfg := &config.Config{
-		Env: os.Getenv("ENV"), // Default to empty or set based on .env
-	}
+	
 
 	// Initialize Repository
 	repo := handlers.NewRepository(cfg, store.DB)
