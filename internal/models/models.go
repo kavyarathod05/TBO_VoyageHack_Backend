@@ -49,16 +49,18 @@ func (g *Guest) BeforeSave(tx *gorm.DB) (err error) {
 }
 
 type Event struct {
-	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()"`
-	AgentID        uuid.UUID      `gorm:"type:uuid;index"`
-	HeadGuestID    uuid.UUID      `gorm:"type:uuid;index"`
-	HotelID        string         `gorm:"index"`
-	RoomsInventory datatypes.JSON `gorm:"type:jsonb"` // Stores the [type, count] array
-	Status         string         `gorm:"default:'draft'"`
-	StartDate      time.Time
-	EndDate        time.Time
-	Location       string
+	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	AgentID        uuid.UUID      `gorm:"type:uuid;index" json:"agentId"`
+	HeadGuestID    uuid.UUID      `gorm:"type:uuid;index" json:"headGuestId"`
+	HotelID        string         `gorm:"index" json:"hotelId"`
+	Name           string         `gorm:"not null" json:"name"`
+	Location       string         `json:"location"`
+	RoomsInventory datatypes.JSON `gorm:"type:jsonb" json:"roomsInventory"`
+	Status         string         `gorm:"default:'draft'" json:"status"`
+	StartDate      time.Time      `json:"startDate"`
+	EndDate        time.Time      `json:"endDate"`
 }
+
 
 // 1. Country Table (Global)
 type Country struct {
@@ -101,6 +103,8 @@ type RoomOffer struct {
 	ID             string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()"`
 	HotelID        string         `gorm:"index;not null"` // Links to Hotel.ID
 	Name           string         `gorm:"not null"`       // "Ocean King"
+	
+	Count          int            `gorm:"default:0"`
 	BookingCode    string         `gorm:"not null"`       // API Booking Key
 	TotalFare      float64        `gorm:"type:decimal(10,2);not null"`
 	Currency       string         `gorm:"size:3;default:'USD'"`

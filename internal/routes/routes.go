@@ -4,11 +4,14 @@ import (
 	"github.com/akashtripathi12/TBO_Backend/internal/config"
 	"github.com/akashtripathi12/TBO_Backend/internal/handlers"
 	"github.com/akashtripathi12/TBO_Backend/internal/middleware"
+	"github.com/akashtripathi12/TBO_Backend/internal/middleware"
 	"github.com/gofiber/fiber/v2"
 )
 
 // SetupRoutes configures all application routes
 func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) {
+
+	// --- Health Route ---
 
 	// --- Health Route ---
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -84,6 +87,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	locations := api.Group("/locations")
 	locations.Get("/countries", repo.GetCountries)
 	locations.Get("/cities", repo.GetCities)
+	hotels := api.Group("/hotels") 
+    hotels.Get("", repo.GetHotelsByCity)
 	// -----------------------------
 	// Hotel Routes (Public)
 	// -----------------------------

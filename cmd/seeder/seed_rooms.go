@@ -63,31 +63,6 @@ type RoomSearchResponse struct {
 func SeedRooms(limit int) {
 	log.Printf("🛏️  Fetching rooms from TBO API (Limit: %d hotels)...", limit)
 
-	// Step 0: Clear existing data and Update Schema
-	log.Println("🧹 Clearing existing room offers and updating schema...")
-
-	// Drop the table to ensure schema changes (ID uint -> string) are applied correctly.
-	// We use CASCADE to drop dependent foreign keys (like in guest_allocations) if they exist.
-	if err := store.DB.Exec("DROP TABLE IF EXISTS room_offers CASCADE").Error; err != nil {
-		log.Printf("⚠️  Error dropping table: %v", err)
-	}
-
-	// Re-create table with new schema
-	if err := store.DB.AutoMigrate(&models.RoomOffer{}); err != nil {
-		log.Printf("❌ Error migrating table room_offers: %v", err)
-		return
-	}
-
-	// Also migrate GuestAllocation because it references RoomOffer and we changed the ID type
-	// This might fail if the table has data with integer IDs, but assuming clean slate or it handles it.
-	// Ideally we should drop it too if we want a clean slate.
-	store.DB.Exec("DROP TABLE IF EXISTS guest_allocations CASCADE") // Optional but safer for this big refactor
-	if err := store.DB.AutoMigrate(&models.GuestAllocation{}); err != nil {
-		log.Printf("⚠️ Error migrating guest_allocations: %v", err)
-	}
-
-	log.Println("✅ Room offers table recreated and schema updated.")
-
 	// Get hotels from database
 	var hotels []models.Hotel
 	// ID is mapped to hotel_code in the model
