@@ -1,55 +1,35 @@
 package store
 
-import "github.com/akashtripathi12/TBO_Backend/internal/models"
+import (
+	"log"
+	"os"
 
-type Store interface {
-	// Auth
-	GetUserByEmail(email string) (*models.User, error)
-	GetAgentCredentials() (*models.AuthCredentials, error)
+	"github.com/akashtripathi12/TBO_Backend/internal/models"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
 
-	// Events
-	GetEvents() ([]models.Event, error)
-	GetEventByID(id string) (*models.Event, error)
-	CreateEvent(event models.Event) error
-	GetMetrics() ([]models.MetricData, error)
+var DB *gorm.DB
 
-	// Guests
-	GetGuestsByEventID(eventID string) ([]models.HeadGuest, error)
-	GetGuestByID(id string) (*models.HeadGuest, error)
-	AddHeadGuest(guest models.HeadGuest) error
+func InitDB() {
+	dsn := os.Getenv("DATABASE_URL")
 
-	// SubGuests
-	GetSubGuestsByHeadGuestID(headGuestID string) ([]models.SubGuest, error)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
-	// Allocations
-	GetAllocationsByEventID(eventID string) ([]models.RoomAllocation, error)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
 
-	// Venues
-	GetVenuesByEventID(eventID string) ([]models.CuratedVenue, error)
-}
+	log.Println("✅ Connected to Supabase")
 
-type MockStore struct{}
+	// Sync schema to DB
+	db.AutoMigrate(
+		&models.User{},
+		&models.AgentProfile{},
+		&models.Event{},
+		&models.Guest{},
+	)
 
-func NewMockStore() *MockStore {
-	return &MockStore{}
-}
-
-// Implement Store interface methods (returning nil/empty for now to satisfy interface)
-func (m *MockStore) GetUserByEmail(email string) (*models.User, error)             { return nil, nil }
-func (m *MockStore) GetAgentCredentials() (*models.AuthCredentials, error)         { return nil, nil }
-func (m *MockStore) GetEvents() ([]models.Event, error)                            { return nil, nil }
-func (m *MockStore) GetEventByID(id string) (*models.Event, error)                 { return nil, nil }
-func (m *MockStore) CreateEvent(event models.Event) error                          { return nil }
-func (m *MockStore) GetMetrics() ([]models.MetricData, error)                      { return nil, nil }
-func (m *MockStore) GetGuestsByEventID(eventID string) ([]models.HeadGuest, error) { return nil, nil }
-func (m *MockStore) GetGuestByID(id string) (*models.HeadGuest, error)             { return nil, nil }
-func (m *MockStore) AddHeadGuest(guest models.HeadGuest) error                     { return nil }
-func (m *MockStore) GetSubGuestsByHeadGuestID(headGuestID string) ([]models.SubGuest, error) {
-	return nil, nil
-}
-func (m *MockStore) GetAllocationsByEventID(eventID string) ([]models.RoomAllocation, error) {
-	return nil, nil
-}
-func (m *MockStore) GetVenuesByEventID(eventID string) ([]models.CuratedVenue, error) {
-	return nil, nil
+	DB = db
+	log.Println("✅ schema synced")
 }
