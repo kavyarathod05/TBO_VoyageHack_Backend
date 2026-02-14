@@ -22,13 +22,19 @@ func main() {
 	// Initialize Store
 	store.InitDB()
 
-	app := fiber.New()
+	
 
 	// Initialize Repository
-	repo := handlers.NewRepository(cfg)
+	repo := handlers.NewRepository(cfg, store.DB)
+
+	app := fiber.New()
 
 	// Setup Routes
 	routes.SetupRoutes(app, cfg, repo)
+
+	app.Get("/health", func(c *fiber.Ctx) error {
+		return c.SendString("TBO Backend Operational 🚀")
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {

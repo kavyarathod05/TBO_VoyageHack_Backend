@@ -43,7 +43,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	// Guest routes
 	guests := api.Group("/guests")
 	guests.Get("/:id", repo.GetGuest)
-	guests.Put("/:id", repo.UpdateGuest)
+	guests.Patch("/:id", repo.UpdateGuest)
 	guests.Delete("/:id", repo.DeleteGuest)
 	guests.Post("/", repo.CreateGuest)
 	guests.Post("/:id/subguests", repo.AddSubGuest)

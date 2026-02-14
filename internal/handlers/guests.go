@@ -1,103 +1,99 @@
 package handlers
 
 import (
+	"github.com/akashtripathi12/TBO_Backend/internal/models"
 	"github.com/akashtripathi12/TBO_Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 )
 
+// List Event Guests
 func (m *Repository) GetGuests(c *fiber.Ctx) error {
-	// Get event ID from path parameter
-	id := c.Params("id")
+	eventID := c.Params("id")
+	var guests []models.Guest
 
-	// TODO: Get guests by event ID
-	// guests, err := m.DB.GetGuestsByEventID(id)
-	// if err != nil {
-	//     return utils.InternalErrorResponse(c, "Failed to fetch guests")
-	// }
+	if err := m.DB.Where("event_id = ?", eventID).Find(&guests).Error; err != nil {
+		return utils.InternalErrorResponse(c, "Failed to fetch guests")
+	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Get Guests Endpoint",
-		"eventId": id,
-		"guests":  []interface{}{},
+		"guests": guests,
 	})
 }
 
+// Get Single Guest
 func (m *Repository) GetGuest(c *fiber.Ctx) error {
-	// Get guest ID from path parameter
 	id := c.Params("id")
+	var guest models.Guest
 
-	// TODO: Get guest by ID
-	// guest, err := m.DB.GetGuestByID(id)
-	// if err != nil {
-	//     return utils.NotFoundResponse(c, "Guest")
-	// }
+	if err := m.DB.First(&guest, "id = ?", id).Error; err != nil {
+		return utils.NotFoundResponse(c, "Guest")
+	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Get Guest Endpoint",
-		"id":      id,
+		"guest": guest,
 	})
 }
 
+
+
+// Create Guest (Generic)
 func (m *Repository) CreateGuest(c *fiber.Ctx) error {
-	// TODO: Parse request body
-	// var guest models.HeadGuest
-	// if err := c.BodyParser(&guest); err != nil {
-	//     return utils.ValidationErrorResponse(c, "Invalid request body")
-	// }
+	var guest models.Guest
+	if err := c.BodyParser(&guest); err != nil {
+		return utils.ValidationErrorResponse(c, "Invalid request body")
+	}
 
-	// TODO: Create guest
-	// if err := m.DB.AddHeadGuest(guest); err != nil {
-	//     return utils.InternalErrorResponse(c, "Failed to create guest")
-	// }
+	if err := m.DB.Create(&guest).Error; err != nil {
+		return utils.InternalErrorResponse(c, "Failed to create guest")
+	}
 
 	return utils.SuccessResponse(c, fiber.StatusCreated, fiber.Map{
-		"message": "Create Guest Endpoint",
+		"message": "Guest created successfully",
+		"guest":   guest,
 	})
 }
 
+// Add Sub Guest (Not in immediate scope but good to keep generic)
 func (m *Repository) AddSubGuest(c *fiber.Ctx) error {
-	// Get head guest ID from path parameter
-	id := c.Params("id")
-
-	// TODO: Parse request body
-	// var subGuest models.SubGuest
-	// if err := c.BodyParser(&subGuest); err != nil {
-	//     return utils.ValidationErrorResponse(c, "Invalid request body")
-	// }
-
-	return utils.SuccessResponse(c, fiber.StatusCreated, fiber.Map{
-		"message":     "Add Sub Guest Endpoint",
-		"headGuestId": id,
-	})
+	// Logic to link sub-guest to head guest would go here
+	// For now, just create a guest
+	return m.CreateGuest(c)
 }
 
+// Update Guest
 func (m *Repository) UpdateGuest(c *fiber.Ctx) error {
-	// Get guest ID from path parameter
 	id := c.Params("id")
+	var input models.Guest
 
-	// TODO: Parse request body and update guest
-	// var guest models.HeadGuest
-	// if err := c.BodyParser(&guest); err != nil {
-	//     return utils.ValidationErrorResponse(c, "Invalid request body")
-	// }
+	if err := c.BodyParser(&input); err != nil {
+		return utils.ValidationErrorResponse(c, "Invalid request body")
+	}
+
+	var guest models.Guest
+	if err := m.DB.First(&guest, "id = ?", id).Error; err != nil {
+		return utils.NotFoundResponse(c, "Guest")
+	}
+
+	// Update fields
+	m.DB.Model(&guest).Updates(input)
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Update Guest Endpoint",
-		"id":      id,
+		"message": "Guest updated successfully",
+		"guest":   guest,
 	})
 }
 
+// Delete Guest
 func (m *Repository) DeleteGuest(c *fiber.Ctx) error {
-	// Get guest ID from path parameter
 	id := c.Params("id")
 
-	// TODO: Delete guest
-	// if err := m.DB.DeleteGuest(id); err != nil {
-	//     return utils.InternalErrorResponse(c, "Failed to delete guest")
-	// }
+	// Transaction to delete guest and release room (future scope: implementation plan mentioned shadow inventory release)
+	// For now, simple delete
+	if err := m.DB.Delete(&models.Guest{}, "id = ?", id).Error; err != nil {
+		return utils.InternalErrorResponse(c, "Failed to delete guest")
+	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Delete Guest Endpoint",
-		"id":      id,
+		"message": "Guest deleted successfully",
 	})
 }
