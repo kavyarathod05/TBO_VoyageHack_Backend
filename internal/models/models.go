@@ -115,20 +115,22 @@ type RoomOffer struct {
 
 // 5. Banquet Halls
 type BanquetHall struct {
-	ID          uint    `gorm:"primaryKey"`
-	HotelID     string  `gorm:"index;not null"`
-	Name        string  `gorm:"not null"`
-	Capacity    int     `gorm:"not null"`
-	PricePerDay float64 `gorm:"type:decimal(10,2)"`
+	ID          uint           `gorm:"primaryKey"`
+	HotelID     string         `gorm:"index;not null"`
+	Name        string         `gorm:"not null"`
+	Capacity    int            `gorm:"not null"`
+	PricePerDay float64        `gorm:"type:decimal(10,2)"`
+	ImageUrls   datatypes.JSON `gorm:"type:jsonb"`
 }
 
 // 6. Catering Menus
 type CateringMenu struct {
-	ID            uint    `gorm:"primaryKey"`
-	HotelID       string  `gorm:"index;not null"`
-	Name          string  `gorm:"not null"`      // "Gold Package"
-	Type          string  `gorm:"default:'veg'"` // 'veg', 'non-veg'
-	PricePerPlate float64 `gorm:"type:decimal(10,2)"`
+	ID            uint           `gorm:"primaryKey"`
+	HotelID       string         `gorm:"index;not null"`
+	Name          string         `gorm:"not null"`      // "Gold Package"
+	Type          string         `gorm:"default:'veg'"` // 'veg', 'non-veg'
+	PricePerPlate float64        `gorm:"type:decimal(10,2)"`
+	ImageUrls     datatypes.JSON `gorm:"type:jsonb"`
 }
 
 // 7. Guest Allocation (The "Join" Table)
