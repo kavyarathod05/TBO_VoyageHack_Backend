@@ -91,7 +91,7 @@ func (r *Repository) LoginHandler(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
 	}
 
-	return c.JSON(fiber.Map{
+	response := fiber.Map{
 		"token": token,
 		"user": fiber.Map{
 			"id":    user.ID,
@@ -99,7 +99,17 @@ func (r *Repository) LoginHandler(c *fiber.Ctx) error {
 			"email": user.Email,
 			"role":  user.Role,
 		},
-	})
+	}
+
+	// If Head Guest, fetch their Event ID
+	if user.Role == "head_guest" {
+		var event models.Event
+		if err := r.DB.Where("head_guest_id = ?", user.ID).First(&event).Error; err == nil {
+			response["eventId"] = event.ID
+		}
+	}
+
+	return c.JSON(response)
 }
 
 // SignupHandler registers a new agent (replaces OnboardAgent)

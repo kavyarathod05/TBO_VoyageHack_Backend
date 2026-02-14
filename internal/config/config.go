@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 type Config struct {
 	Port           string
@@ -14,9 +17,19 @@ type Config struct {
 }
 
 func Load() *Config {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	env := os.Getenv("ENV")
+	if env == "" {
+		env = "development"
+	}
+
 	return &Config{
-		Port:           ":8080",
-		Env:            "development",
+		Port:           ":" + port,
+		Env:            env,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		BodyLimit:      4 * 1024 * 1024, // 4MB

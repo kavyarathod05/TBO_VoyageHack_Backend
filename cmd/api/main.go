@@ -31,7 +31,7 @@ func main() {
 	// Enable CORS
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*", // For development
-		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Clerk-User-Id",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 	}))
 
 	// Setup Routes

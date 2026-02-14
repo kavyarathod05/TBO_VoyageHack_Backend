@@ -36,8 +36,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	// Protected Routes (ENV Based)
 	// -----------------------------
 	var protected fiber.Router
-		protected = api.Group("/", middleware.Protected)
 
+	protected = api.Group("/", middleware.Protected)
 
 	// Authenticated user
 	protected.Get("/me", repo.GetMe)

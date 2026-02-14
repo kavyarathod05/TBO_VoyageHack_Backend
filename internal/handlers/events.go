@@ -120,6 +120,7 @@ func (m *Repository) CreateEvent(c *fiber.Ctx) error {
 	event := models.Event{
 		ID:             uuid.New(),
 		AgentID:        agentID,
+		Name:           req.Name, // Fix: Assign Name
 		HotelID:        req.HotelID,
 		Location:       req.Location,
 		StartDate:      startDate,
@@ -184,42 +185,98 @@ func (m *Repository) GetEventAllocations(c *fiber.Ctx) error {
 	})
 }
 
-func (m *Repository) UpdateEvent(c *fiber.Ctx) error {
-	// Get event ID from path parameter
-	id := c.Params("id")
+// UpdateEventRequest struct
+type UpdateEventRequest struct {
+	Name      string `json:"name"`
+	Location  string `json:"location"`
+	StartDate string `json:"startDate"`
+	EndDate   string `json:"endDate"`
+}
 
-	// TODO: Parse request body and update event
-	// var event models.Event
-	// if err := c.BodyParser(&event); err != nil {
-	//     return utils.ValidationErrorResponse(c, "Invalid request body")
-	// }
+func (m *Repository) UpdateEvent(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var req UpdateEventRequest
+	if err := c.BodyParser(&req); err != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body")
+	}
+
+	var event models.Event
+	if err := m.DB.Where("id = ?", id).First(&event).Error; err != nil {
+		return utils.ErrorResponse(c, fiber.StatusNotFound, "Event not found")
+	}
+
+	updates := map[string]interface{}{}
+	if req.Name != "" {
+		updates["name"] = req.Name
+	}
+	if req.Location != "" {
+		updates["location"] = req.Location
+	}
+	if req.StartDate != "" {
+		// Parse date
+		layout := "2006-01-02"
+		if t, err := time.Parse(layout, req.StartDate); err == nil {
+			updates["start_date"] = t
+		}
+	}
+	if req.EndDate != "" {
+		layout := "2006-01-02"
+		if t, err := time.Parse(layout, req.EndDate); err == nil {
+			updates["end_date"] = t
+		}
+	}
+
+	if err := m.DB.Model(&event).Updates(updates).Error; err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update event")
+	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Update Event Endpoint",
-		"id":      id,
+		"message": "Event Updated Successfully",
+		"event":   event,
 	})
 }
 
 func (m *Repository) DeleteEvent(c *fiber.Ctx) error {
-	// Get event ID from path parameter
 	id := c.Params("id")
 
-	// TODO: Delete event
-	// if err := m.DB.DeleteEvent(id); err != nil {
-	//     return utils.InternalErrorResponse(c, "Failed to delete event")
-	// }
+	// Validate UUID
+	if _, err := uuid.Parse(id); err != nil {
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid Event ID")
+	}
+
+	// Transactional delete using Cascade if configured, or manual
+	tx := m.DB.Begin()
+
+	// Delete Allocations
+	if err := tx.Where("event_id = ?", id).Delete(&models.GuestAllocation{}).Error; err != nil {
+		tx.Rollback()
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete allocations")
+	}
+
+	// Delete Guests
+	if err := tx.Where("event_id = ?", id).Delete(&models.Guest{}).Error; err != nil {
+		tx.Rollback()
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete guests")
+	}
+
+	// Delete Event
+	if err := tx.Where("id = ?", id).Delete(&models.Event{}).Error; err != nil {
+		tx.Rollback()
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete event")
+	}
+
+	tx.Commit()
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Delete Event Endpoint",
+		"message": "Event Deleted Successfully",
 		"id":      id,
 	})
 }
 
 type AssignHeadGuestRequest struct {
-	ClerkID string `json:"clerkId"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Phone string `json:"phone"`
 }
 
 func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
@@ -229,7 +286,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
 
-	if req.Email == "" { // Removed ClerkID check as it's no longer used for user creation
+	if req.Email == "" {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Missing required fields")
 	}
 
@@ -327,13 +384,15 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 	}
 
 	// 3. Create Guest Record (optional, but requested in previous conversations)
-	// We will just create a basic guest entry
+	// We ensure the Guest ID matches the User ID so portal lookups work
 	guest := models.Guest{
-		EventID: event.ID,
-		Name:    req.Name,
-		Email:   req.Email,
-		Phone:   req.Phone,
-		Type:    "Adult",
+		ID:       user.ID, // Link User ID to Guest ID
+		EventID:  event.ID,
+		Name:     req.Name,
+		Email:    req.Email,
+		Phone:    req.Phone,
+		Type:     "Adult",
+		FamilyID: uuid.New(),
 	}
 	if err := tx.Create(&guest).Error; err != nil {
 		tx.Rollback()
