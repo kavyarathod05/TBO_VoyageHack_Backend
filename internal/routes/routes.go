@@ -36,14 +36,8 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	// Protected Routes (ENV Based)
 	// -----------------------------
 	var protected fiber.Router
-
-	if cfg.Env == "development" {
-		// Disable auth in development
-		protected = api.Group("/")
-	} else {
-		// Enable auth in production
 		protected = api.Group("/", middleware.Protected)
-	}
+
 
 	// Authenticated user
 	protected.Get("/me", repo.GetMe)
@@ -62,7 +56,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	events.Delete("/:id", repo.DeleteEvent)
 	events.Get("/:id/venues", repo.GetEventVenues)
 	events.Get("/:id/allocations", repo.GetEventAllocations)
-	api.Post("/:id/guests", repo.CreateGuest)
+	events.Post("/:id/guests", repo.CreateGuest)
 	events.Get("/:id/guests", repo.GetGuests)
 	events.Post("/:id/head-guest", repo.AssignHeadGuest)
 

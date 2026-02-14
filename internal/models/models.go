@@ -41,10 +41,12 @@ type Guest struct {
 }
 
 func (g *Guest) BeforeSave(tx *gorm.DB) (err error) {
-	if g.Age >= 12 {
-		g.Type = "Adult"
-	} else if g.Age < 12 {
-		g.Type = "Child"
+	if g.Type == "" {
+		if g.Age >= 12 {
+			g.Type = "adult"
+		} else {
+			g.Type = "child"
+		}
 	}
 	return
 }
