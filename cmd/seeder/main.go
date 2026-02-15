@@ -37,6 +37,7 @@ func main() {
 	// 1. Full Database Reset
 	log.Println("⚠️  STARTING DATABASE RESET...")
 	tables := []string{
+		"cart_items",
 		"guest_allocations",
 		"room_offers",
 		"banquet_halls",
@@ -71,6 +72,7 @@ func main() {
 		&models.Event{},
 		&models.Guest{},
 		&models.GuestAllocation{},
+		&models.CartItem{},
 	)
 	if err != nil {
 		log.Fatal("❌ Migration Failed:", err)

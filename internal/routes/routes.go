@@ -55,17 +55,18 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	events.Put("/:id", repo.UpdateEvent)
 	events.Delete("/:id", repo.DeleteEvent)
 	events.Get("/:id/venues", repo.GetEventVenues)
-<<<<<<< Updated upstream
 	events.Get("/:id/allocations", repo.GetEventAllocations)
 	events.Post("/:id/guests", repo.CreateGuest)
-=======
-	events.Get("/:eventId/allocations", repo.GetEventAllocations)
-	// events.Get("/:eventId/allocations", repo.GetEventAllocations) -- duplicate removed
-	events.Post("/:eventId/auto-allocate", repo.AutoAllocate)
-	api.Post("/:id/guests", repo.CreateGuest)
->>>>>>> Stashed changes
+	events.Post("/:id/auto-allocate", repo.AutoAllocate)
 	events.Get("/:id/guests", repo.GetGuests)
 	events.Post("/:id/head-guest", repo.AssignHeadGuest)
+
+	// Cart Routes
+	events.Get("/:id/cart", repo.GetEventCart)
+	events.Post("/:id/cart", repo.AddToCart)
+	events.Patch("/:id/cart/:cartItemId", repo.UpdateCartItem)
+	events.Delete("/:id/cart/:cartItemId", repo.RemoveFromCart)
+	events.Post("/:id/cart/approve", repo.UpdateCartStatus)
 
 	// -----------------------------
 	// Guest Routes
