@@ -1,4 +1,4 @@
-package models
+ package models
 
 import (
 	"time"
@@ -45,6 +45,7 @@ func (c *CartItem) BeforeSave(tx *gorm.DB) error {
 		"wishlist": true,
 		"approved": true,
 		"booked":   true,
+		"cart":     true,
 	}
 	if !validStatuses[c.Status] {
 		return gorm.ErrInvalidData

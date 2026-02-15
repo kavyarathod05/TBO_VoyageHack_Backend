@@ -21,6 +21,7 @@ type AddToCartRequest struct {
 	RefID    string `json:"refId"`    // ID of the referenced item
 	Quantity int    `json:"quantity"` // Number of units (default: 1)
 	Notes    string `json:"notes"`    // Optional notes
+	Status   string `json:"status"`   // Optional status (default: 'wishlist')
 }
 
 type UpdateCartItemRequest struct {
@@ -60,6 +61,11 @@ func (m *Repository) AddToCart(c *fiber.Ctx) error {
 	// Default quantity to 1 if not provided
 	if req.Quantity <= 0 {
 		req.Quantity = 1
+	}
+
+	// Default status if not provided
+	if req.Status == "" {
+		req.Status = "wishlist"
 	}
 
 	// Determine parent_hotel_id and fetch locked price based on type
@@ -119,7 +125,7 @@ func (m *Repository) AddToCart(c *fiber.Ctx) error {
 		Type:          req.Type,
 		RefID:         req.RefID,
 		ParentHotelID: parentHotelID,
-		Status:        "wishlist",
+		Status:        req.Status,
 		Quantity:      req.Quantity,
 		LockedPrice:   lockedPrice,
 		Notes:         req.Notes,
