@@ -88,6 +88,38 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	allocations.Put("/:id", repo.UpdateAllocation)
 
 	// -----------------------------
+	// Flight Routes
+	// -----------------------------
+	// Event-specific	// --- Global Flight Routes (Public) ---
+	flights := protected.Group("/flights")
+	flights.Get("/locations", repo.GetFlightLocations) // Get unique booking locations
+	flights.Get("/", repo.GetAllFlights)               // List all global flights
+	flights.Get("/:id", repo.GetFlight)                // Get single flight
+	flights.Post("/", repo.CreateFlight)               // Create flight (admin)
+	flights.Put("/:id", repo.UpdateFlight)             // Update flight (admin)
+	flights.Delete("/:id", repo.DeleteFlight)          // Delete flight (admin)
+
+	// --- Global Transfer Routes (Public) ---
+	transfers := protected.Group("/transfers")
+	transfers.Get("/", repo.GetAllTransfers)      // List all global transfers
+	transfers.Get("/:id", repo.GetTransfer)       // Get single transfer
+	transfers.Post("/", repo.CreateTransfer)      // Create transfer (admin)
+	transfers.Put("/:id", repo.UpdateTransfer)    // Update transfer (admin)
+	transfers.Delete("/:id", repo.DeleteTransfer) // Delete transfer (admin)
+
+	// --- Event-Specific Flight Booking Routes ---
+	eventFlights := events.Group("/:id/flights")
+	eventFlights.Get("/", repo.GetEventFlightBookings)            // Get event's flight bookings
+	eventFlights.Post("/book", repo.BookFlightForEvent)           // Book a flight for event
+	eventFlights.Delete("/:booking_id", repo.CancelFlightBooking) // Cancel flight booking
+
+	// --- Event-Specific Transfer Booking Routes ---
+	eventTransfers := events.Group("/:id/transfers")
+	eventTransfers.Get("/", repo.GetEventTransferBookings)            // Get event's transfer bookings
+	eventTransfers.Post("/book", repo.BookTransferForEvent)           // Book a transfer for event
+	eventTransfers.Delete("/:booking_id", repo.CancelTransferBooking) // Cancel transfer booking
+
+	// -----------------------------
 	// Location Routes (Public)
 	// -----------------------------
 	locations := api.Group("/locations")
@@ -99,6 +131,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	// -----------------------------
 	hotels := protected.Group("/hotels")
 	hotels.Get("/", repo.GetHotelsByCity)
+	hotels.Get("/:id", repo.GetHotel)
 	hotels.Get("/:hotelCode/rooms", repo.GetRoomsByHotel)
 	hotels.Get("/:hotelCode/banquets", repo.GetBanquetsByHotel)
 	hotels.Get("/:hotelCode/catering", repo.GetCateringByHotel)

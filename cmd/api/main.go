@@ -62,7 +62,7 @@ func main() {
 	go func() {
 		log.Println("👷 Asynq Worker Server Starting...")
 		if err := srv.Run(mux); err != nil {
-			log.Fatalf("❌ Asynq Server Failed: %v", err)
+			log.Printf("❌ Asynq Server Failed: %v", err)
 		}
 	}()
 

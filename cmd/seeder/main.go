@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 	"gorm.io/datatypes"
+	"gorm.io/gorm"
 )
 
 // RoomsInventoryItem represents a single room type in inventory
@@ -36,8 +37,11 @@ func main() {
 
 	// 1. Full Database Reset
 	log.Println("⚠️  STARTING DATABASE RESET...")
+	// Order matters: drop child tables first
 	tables := []string{
 		"cart_items",
+		"flight_bookings",
+		"transfer_bookings",
 		"guest_allocations",
 		"room_offers",
 		"banquet_halls",
@@ -49,6 +53,8 @@ func main() {
 		"agent_profiles",
 		"guests",
 		"users",
+		"flights",
+		"transfers",
 	}
 
 	for _, table := range tables {
@@ -73,6 +79,10 @@ func main() {
 		&models.Guest{},
 		&models.GuestAllocation{},
 		&models.CartItem{},
+		&models.Flight{},
+		&models.FlightBooking{},
+		&models.Transfer{},
+		&models.TransferBooking{},
 	)
 	if err != nil {
 		log.Fatal("❌ Migration Failed:", err)
@@ -117,7 +127,11 @@ func main() {
 		Name:      "India",
 		PhoneCode: "91",
 	}
-	db.Create(&country)
+	if err := db.Create(&country).Error; err != nil {
+		log.Printf("❌ Failed to create country: %v", err)
+	} else {
+		log.Println("   ✓ Created Country: India")
+	}
 
 	city := models.City{
 		ID:          "DEL",
@@ -125,7 +139,11 @@ func main() {
 		Name:        "New Delhi",
 		IsPopular:   true,
 	}
-	db.Create(&city)
+	if err := db.Create(&city).Error; err != nil {
+		log.Printf("❌ Failed to create city: %v", err)
+	} else {
+		log.Println("   ✓ Created City: New Delhi")
+	}
 
 	// 5. Seed Hotels (50 hotels)
 	log.Println("🏨 Seeding 50 Hotels...")
@@ -279,7 +297,7 @@ func main() {
 		Name:           "Global Tech Summit 2026",
 		Location:       "New Delhi, India",
 		RoomsInventory: datatypes.JSON(invJSON),
-		Status:         "allocating",
+		Status:         "active",
 		StartDate:      time.Now().AddDate(0, 1, 0),
 		EndDate:        time.Now().AddDate(0, 1, 4),
 	}
@@ -333,6 +351,71 @@ func main() {
 		}
 	}
 
+	// 11. Seed Global Flights
+	flights := seedGlobalFlights(db)
+
+	// 12. Seed Global Transfers
+	transfers := seedGlobalTransfers(db)
+
+	// 13. Seed Cart Data (linked to bookings)
+	log.Println("🛒 Seeding Cart with Flight and Transfer Bookings...")
+
+	// Find one flight to book
+	if len(flights) > 0 {
+		flight := flights[0]
+		fb := models.FlightBooking{
+			FlightID:    flight.ID,
+			EventID:     event.ID,
+			SeatsBooked: 2,
+			PriceLocked: flight.BasePrice,
+			Status:      "pending",
+			BookedBy:    headGuestUser.ID,
+		}
+		db.Create(&fb)
+
+		cartItemF := models.CartItem{
+			EventID:         event.ID,
+			Type:            "flight",
+			RefID:           flight.ID.String(),
+			FlightBookingID: &fb.ID,
+			Status:          "wishlist",
+			Quantity:        2,
+			LockedPrice:     flight.BasePrice,
+			AddedBy:         headGuestUser.ID,
+		}
+		db.Create(&cartItemF)
+		log.Printf("   ✓ Added Flight Booking to Cart: %s (%s)", fb.ID, flight.FlightNumber)
+	}
+
+	// Find one transfer to book
+	if len(transfers) > 0 {
+		transfer := transfers[0]
+		tb := models.TransferBooking{
+			TransferID:     transfer.ID,
+			EventID:        event.ID,
+			CabsBooked:     1,
+			PriceLocked:    transfer.BasePricePerCab,
+			PickupLocation: "Airport",
+			DropLocation:   "Hotel",
+			Status:         "pending",
+			BookedBy:       headGuestUser.ID,
+		}
+		db.Create(&tb)
+
+		cartItemT := models.CartItem{
+			EventID:           event.ID,
+			Type:              "transfer",
+			RefID:             transfer.ID.String(),
+			TransferBookingID: &tb.ID,
+			Status:            "wishlist",
+			Quantity:          1,
+			LockedPrice:       transfer.BasePricePerCab,
+			AddedBy:           headGuestUser.ID,
+		}
+		db.Create(&cartItemT)
+		log.Printf("   ✓ Added Transfer Booking to Cart: %s (%s)", tb.ID, transfer.CarModel)
+	}
+
 	log.Println("🎉 DEMO SEEDING COMPLETED!")
 	log.Printf("📊 Summary:")
 	log.Printf("   - Users: 2 (1 Agent, 1 Head Guest)")
@@ -341,4 +424,175 @@ func main() {
 	log.Printf("   - Events: 1 (%s)", event.Name)
 	log.Printf("   - Guests: 500")
 	log.Printf("   - Allocations: 100")
+	log.Printf("   - Flights: %d", len(flights))
+	log.Printf("   - Transfers: %d", len(transfers))
+}
+
+// seedGlobalFlights seeds global flights (not tied to any event) and returns them
+func seedGlobalFlights(db *gorm.DB) []models.Flight {
+	log.Println("✈️  Seeding Global Flights...")
+
+	// Routes to Delhi from various cities
+	routes := []struct {
+		from     string
+		fromCode string
+		airline  string
+		prefix   string
+		distance int // for pricing
+	}{
+		{"Mumbai", "BOM", "Air India", "AI", 1400},
+		{"Bangalore", "BLR", "IndiGo", "6E", 2100},
+		{"Dubai", "DXB", "Emirates", "EK", 2200},
+		{"Singapore", "SIN", "Singapore Airlines", "SQ", 4100},
+		{"London", "LHR", "British Airways", "BA", 6700},
+		{"New York", "JFK", "Air India", "AI", 12000},
+		{"Kolkata", "CCU", "Vistara", "UK", 1500},
+		{"Chennai", "MAA", "IndiGo", "6E", 2180},
+		{"Hyderabad", "HYD", "Air India", "AI", 1580},
+		{"Ahmedabad", "AMD", "Vistara", "UK", 1050},
+	}
+
+	var flights []models.Flight
+	for i, route := range routes {
+		// Generate flight number
+		flightNum := rand.Intn(900) + 100
+		flightNumber := route.prefix + " " + string(rune(flightNum/100+'0')) + string(rune((flightNum/10)%10+'0')) + string(rune(flightNum%10+'0'))
+
+		// Random departure time (next 7 days)
+		daysAhead := rand.Intn(7) + 1
+		hour := rand.Intn(18) + 6 // 6 AM to 11 PM
+		minute := []int{0, 15, 30, 45}[rand.Intn(4)]
+		departureTime := time.Now().AddDate(0, 0, daysAhead).
+			Truncate(24 * time.Hour).
+			Add(time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute)
+
+		// Calculate arrival time (based on distance)
+		flightDuration := time.Duration(route.distance/800+1) * time.Hour
+		arrivalTime := departureTime.Add(flightDuration)
+
+		// Calculate price based on distance
+		basePrice := float64(route.distance) * 4.5
+		if route.distance > 5000 {
+			basePrice = float64(route.distance) * 6.5 // International premium
+		}
+
+		// Random seat configuration
+		totalSeats := []int{150, 180, 200, 250}[rand.Intn(4)]
+		availableSeats := totalSeats - rand.Intn(50) // Some seats already booked
+
+		flight := models.Flight{
+			FlightNumber:   flightNumber,
+			AirlineName:    route.airline,
+			DepartureTime:  departureTime,
+			ArrivalTime:    arrivalTime,
+			DepartureCode:  route.fromCode,
+			ArrivalCode:    "DEL",
+			TotalSeats:     totalSeats,
+			AvailableSeats: availableSeats,
+			BasePrice:      basePrice,
+			Status:         "active",
+		}
+
+		flights = append(flights, flight)
+
+		// Create the flight
+		if err := db.Create(&flight).Error; err != nil {
+			log.Printf("   ❌ Failed to create flight %s: %v", flightNumber, err)
+			continue
+		}
+
+		// Add some variety - create a second flight for popular routes
+		if i < 5 {
+			// Create evening flight
+			eveningDeparture := departureTime.Add(8 * time.Hour)
+			eveningArrival := eveningDeparture.Add(flightDuration)
+
+			eveningFlight := models.Flight{
+				FlightNumber:   route.prefix + " " + string(rune((flightNum+100)/100+'0')) + string(rune(((flightNum+100)/10)%10+'0')) + string(rune((flightNum+100)%10+'0')),
+				AirlineName:    route.airline,
+				DepartureTime:  eveningDeparture,
+				ArrivalTime:    eveningArrival,
+				DepartureCode:  route.fromCode,
+				ArrivalCode:    "DEL",
+				TotalSeats:     totalSeats,
+				AvailableSeats: totalSeats - rand.Intn(30),
+				BasePrice:      basePrice * 1.1, // Evening flights slightly more expensive
+				Status:         "active",
+			}
+
+			if err := db.Create(&eveningFlight).Error; err == nil {
+				flights = append(flights, eveningFlight)
+			}
+		}
+	}
+
+	log.Printf("✅ Seeded %d global flights successfully!\n", len(flights))
+	return flights
+}
+
+// seedGlobalTransfers seeds global transfer options (not tied to any event) and returns them
+func seedGlobalTransfers(db *gorm.DB) []models.Transfer {
+	log.Println("🚗 Seeding Global Transfers...")
+
+	transferOptions := []struct {
+		cabType   string
+		models    []string
+		basePrice float64
+		capacity  int
+	}{
+		{
+			cabType:   "hatchback",
+			models:    []string{"Maruti Swift", "Hyundai i20", "Tata Altroz"},
+			basePrice: 1500,
+			capacity:  15,
+		},
+		{
+			cabType:   "sedan",
+			models:    []string{"Honda City", "Hyundai Verna", "Maruti Ciaz", "Toyota Etios"},
+			basePrice: 2500,
+			capacity:  20,
+		},
+		{
+			cabType:   "suv",
+			models:    []string{"Toyota Innova", "Toyota Fortuner", "Mahindra XUV700", "MG Hector"},
+			basePrice: 4000,
+			capacity:  12,
+		},
+	}
+
+	var transfers []models.Transfer
+	for _, option := range transferOptions {
+		for _, carModel := range option.models {
+			// Random pricing variation
+			priceVariation := rand.Float64()*500 - 250 // ±250
+			price := option.basePrice + priceVariation
+
+			// Random availability
+			totalCount := option.capacity + rand.Intn(10) - 5 // ±5 from base capacity
+			if totalCount < 5 {
+				totalCount = 5
+			}
+			availableCount := totalCount - rand.Intn(totalCount/3) // Some already booked
+
+			transfer := models.Transfer{
+				CabType:         option.cabType,
+				CarModel:        carModel,
+				TotalCount:      totalCount,
+				AvailableCount:  availableCount,
+				BasePricePerCab: price,
+				Status:          "active",
+			}
+
+			transfers = append(transfers, transfer)
+
+			// Create the transfer
+			if err := db.Create(&transfer).Error; err != nil {
+				log.Printf("   ❌ Failed to create transfer %s (%s): %v", option.cabType, carModel, err)
+				continue
+			}
+		}
+	}
+
+	log.Printf("✅ Seeded %d global transfer options successfully!\n", len(transfers))
+	return transfers
 }

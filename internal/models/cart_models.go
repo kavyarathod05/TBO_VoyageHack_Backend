@@ -1,4 +1,4 @@
- package models
+package models
 
 import (
 	"time"
@@ -10,20 +10,24 @@ import (
 // CartItem represents an item in the event cart/wishlist
 // Uses polymorphic design: Type + RefID to reference different tables
 type CartItem struct {
-	ID            uuid.UUID `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
-	EventID       uuid.UUID `gorm:"type:uuid;index;not null" json:"event_id"`
-	Event         Event     `gorm:"foreignKey:EventID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
-	Type          string    `gorm:"size:20;not null;index" json:"type"`             // 'room', 'banquet', 'catering', 'flight'
-	RefID         string    `gorm:"size:255;not null" json:"ref_id"`                // ID of the referenced item
-	ParentHotelID *string   `gorm:"size:50;index" json:"parent_hotel_id,omitempty"` // Hotel code for grouping (NULL for flights)
-	Status        string    `gorm:"size:20;default:'wishlist';index" json:"status"` // 'wishlist', 'approved', 'booked'
-	Quantity      int       `gorm:"not null;default:1" json:"quantity"`             // Number of units
-	LockedPrice   float64   `gorm:"type:decimal(10,2)" json:"locked_price"`         // Price at time of adding
-	Notes         string    `gorm:"type:text" json:"notes,omitempty"`               // Optional notes
-	AddedBy       uuid.UUID `gorm:"type:uuid;index" json:"added_by"`                // User who added this item
-	User          User      `gorm:"foreignKey:AddedBy" json:"-"`                    // Reference to user who added
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID                uuid.UUID        `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
+	EventID           uuid.UUID        `gorm:"type:uuid;index;not null" json:"event_id"`
+	Event             Event            `gorm:"foreignKey:EventID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
+	Type              string           `gorm:"size:20;not null;index" json:"type"`             // 'room', 'banquet', 'catering', 'flight'
+	RefID             string           `gorm:"size:255;not null" json:"ref_id"`                // ID of the referenced item
+	ParentHotelID     *string          `gorm:"size:50;index" json:"parent_hotel_id,omitempty"` // Hotel code for grouping (NULL for flights)
+	FlightBookingID   *uuid.UUID       `gorm:"type:uuid;index" json:"flight_booking_id,omitempty"`
+	FlightBooking     *FlightBooking   `gorm:"foreignKey:FlightBookingID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"flight_booking,omitempty"`
+	TransferBookingID *uuid.UUID       `gorm:"type:uuid;index" json:"transfer_booking_id,omitempty"`
+	TransferBooking   *TransferBooking `gorm:"foreignKey:TransferBookingID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"transfer_booking,omitempty"`
+	Status            string           `gorm:"size:20;default:'wishlist';index" json:"status"` // 'wishlist', 'approved', 'booked'
+	Quantity          int              `gorm:"not null;default:1" json:"quantity"`             // Number of units
+	LockedPrice       float64          `gorm:"type:decimal(10,2)" json:"locked_price"`         // Price at time of adding
+	Notes             string           `gorm:"type:text" json:"notes,omitempty"`               // Optional notes
+	AddedBy           uuid.UUID        `gorm:"type:uuid;index" json:"added_by"`                // User who added this item
+	User              User             `gorm:"foreignKey:AddedBy" json:"-"`                    // Reference to user who added
+	CreatedAt         time.Time        `json:"created_at"`
+	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
 // BeforeSave validates the cart item before saving
@@ -35,6 +39,7 @@ func (c *CartItem) BeforeSave(tx *gorm.DB) error {
 		"catering": true,
 		"flight":   true,
 		"hotel":    true,
+		"transfer": true,
 	}
 	if !validTypes[c.Type] {
 		return gorm.ErrInvalidData
@@ -58,9 +63,10 @@ func (c *CartItem) BeforeSave(tx *gorm.DB) error {
 
 // CartResponse is the top-level response structure
 type CartResponse struct {
-	EventID uuid.UUID        `json:"event_id"`
-	Hotels  []HotelCartGroup `json:"hotels"`
-	Flights []CartItemDetail `json:"flights"`
+	EventID   uuid.UUID        `json:"event_id"`
+	Hotels    []HotelCartGroup `json:"hotels"`
+	Flights   []CartItemDetail `json:"flights"`
+	Transfers []CartItemDetail `json:"transfers"`
 }
 
 // HotelCartGroup groups cart items by hotel
@@ -89,4 +95,5 @@ type CartItemDetail struct {
 	CateringDetails interface{} `json:"catering_details,omitempty"`
 	FlightDetails   interface{} `json:"flight_details,omitempty"`
 	HotelDetails    interface{} `json:"hotel_details,omitempty"`
+	TransferDetails interface{} `json:"transfer_details,omitempty"`
 }

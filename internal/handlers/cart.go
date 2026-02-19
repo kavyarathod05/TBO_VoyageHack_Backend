@@ -12,12 +12,13 @@ import (
 	"github.com/akashtripathi12/TBO_Backend/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // --- Request DTOs ---
 
 type AddToCartRequest struct {
-	Type     string `json:"type"`     // 'room', 'banquet', 'catering', 'flight'
+	Type     string `json:"type"`     // 'room', 'banquet', 'catering', 'flight', 'transfer'
 	RefID    string `json:"refId"`    // ID of the referenced item
 	Quantity int    `json:"quantity"` // Number of units (default: 1)
 	Notes    string `json:"notes"`    // Optional notes
@@ -80,6 +81,8 @@ func (m *Repository) AddToCart(c *fiber.Ctx) error {
 	// Determine parent_hotel_id and fetch locked price based on type
 	var parentHotelID *string
 	var lockedPrice float64
+	var flightBookingID *uuid.UUID
+	var transferBookingID *uuid.UUID
 
 	switch req.Type {
 	case "room":
@@ -119,26 +122,115 @@ func (m *Repository) AddToCart(c *fiber.Ctx) error {
 		lockedPrice = 0
 
 	case "flight":
-		// Flights don't have a parent hotel
+		var flight models.Flight
+		if err := m.DB.Where("id = ?", req.RefID).First(&flight).Error; err != nil {
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Flight not found")
+		}
+
+		// Check availability
+		if flight.AvailableSeats < req.Quantity {
+			return utils.ErrorResponse(c, fiber.StatusBadRequest, fmt.Sprintf("Not enough seats available. Available: %d, Requested: %d", flight.AvailableSeats, req.Quantity))
+		}
+
 		parentHotelID = nil
-		lockedPrice = 0 // Flight pricing would be handled separately
+		lockedPrice = flight.BasePrice
+
+		// Create Flight Booking
+		eventUUID, _ := uuid.Parse(eventID)
+		flightBooking := models.FlightBooking{
+			FlightID:    flight.ID,
+			EventID:     eventUUID,
+			SeatsBooked: req.Quantity,
+			PriceLocked: flight.BasePrice,
+			Status:      "pending",
+			BookedBy:    currentUserID,
+		}
+
+		// Transaction to update inventory and booking
+		tx := m.DB.Begin()
+
+		// Decrement persistence
+		flight.AvailableSeats -= req.Quantity
+		if err := tx.Save(&flight).Error; err != nil {
+			tx.Rollback()
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update flight inventory")
+		}
+
+		if err := tx.Create(&flightBooking).Error; err != nil {
+			tx.Rollback()
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create flight booking")
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to commit booking")
+		}
+
+		flightBookingID = &flightBooking.ID
+
+	case "transfer":
+		var transfer models.Transfer
+		if err := m.DB.Where("id = ?", req.RefID).First(&transfer).Error; err != nil {
+			return utils.ErrorResponse(c, fiber.StatusNotFound, "Transfer not found")
+		}
+		// Check availability
+		if transfer.AvailableCount < req.Quantity {
+			return utils.ErrorResponse(c, fiber.StatusBadRequest, fmt.Sprintf("Not enough cabs available. Available: %d, Requested: %d", transfer.AvailableCount, req.Quantity))
+		}
+		parentHotelID = nil
+		lockedPrice = transfer.BasePricePerCab
+
+		// Create Transfer Booking
+		eventUUID, _ := uuid.Parse(eventID)
+		transferBooking := models.TransferBooking{
+			TransferID:     transfer.ID,
+			EventID:        eventUUID,
+			CabsBooked:     req.Quantity,
+			PriceLocked:    transfer.BasePricePerCab,
+			PickupLocation: "To be decided", // Default
+			DropLocation:   "To be decided", // Default
+			Status:         "pending",
+			BookedBy:       currentUserID,
+		}
+
+		// Transaction
+		tx := m.DB.Begin()
+
+		// Decrement persistence
+		transfer.AvailableCount -= req.Quantity
+		if err := tx.Save(&transfer).Error; err != nil {
+			tx.Rollback()
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update transfer inventory")
+		}
+
+		if err := tx.Create(&transferBooking).Error; err != nil {
+			tx.Rollback()
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create transfer booking")
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to commit booking")
+		}
+
+		transferBookingID = &transferBooking.ID
 
 	default:
-		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid type. Must be: hotel, room, banquet, catering, or flight")
+		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid type. Must be: hotel, room, banquet, catering, flight, or transfer")
 	}
 
 	// Create cart item
 	eventUUID, _ := uuid.Parse(eventID)
 	cartItem := models.CartItem{
-		EventID:       eventUUID,
-		Type:          req.Type,
-		RefID:         req.RefID,
-		ParentHotelID: parentHotelID,
-		Status:        req.Status,
-		Quantity:      req.Quantity,
-		LockedPrice:   lockedPrice,
-		Notes:         req.Notes,
-		AddedBy:       currentUserID,
+		EventID:           eventUUID,
+		Type:              req.Type,
+		RefID:             req.RefID,
+		ParentHotelID:     parentHotelID,
+		FlightBookingID:   flightBookingID,
+		TransferBookingID: transferBookingID,
+		Status:            req.Status,
+		Quantity:          req.Quantity,
+		LockedPrice:       lockedPrice,
+		Notes:             req.Notes,
+		AddedBy:           currentUserID,
 	}
 
 	if err := m.DB.Create(&cartItem).Error; err != nil {
@@ -266,6 +358,83 @@ func (m *Repository) UpdateCartItem(c *fiber.Ctx) error {
 
 	// Apply updates
 	if len(updates) > 0 {
+		// Synced inventory update for Flights/Transfers
+		if req.Quantity != nil && *req.Quantity > 0 && *req.Quantity != cartItem.Quantity {
+			delta := *req.Quantity - cartItem.Quantity
+
+			// Start transaction for inventory sync
+			tx := m.DB.Begin()
+
+			if cartItem.Type == "flight" && cartItem.FlightBookingID != nil {
+				var flight models.Flight
+				var booking models.FlightBooking
+
+				if err := tx.First(&booking, cartItem.FlightBookingID).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Flight booking not found")
+				}
+				if err := tx.First(&flight, booking.FlightID).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Flight not found")
+				}
+
+				// Check availability if increasing quantity
+				if delta > 0 && flight.AvailableSeats < delta {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusBadRequest, fmt.Sprintf("Not enough seats available. Available: %d, Requested Additional: %d", flight.AvailableSeats, delta))
+				}
+
+				// Update inventory
+				if err := tx.Model(&flight).Update("available_seats", gorm.Expr("available_seats - ?", delta)).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update flight inventory")
+				}
+
+				// Update booking quantity
+				if err := tx.Model(&booking).Update("seats_booked", *req.Quantity).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update booking quantity")
+				}
+
+			} else if cartItem.Type == "transfer" && cartItem.TransferBookingID != nil {
+				var transfer models.Transfer
+				var booking models.TransferBooking
+
+				if err := tx.First(&booking, cartItem.TransferBookingID).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Transfer booking not found")
+				}
+				if err := tx.First(&transfer, booking.TransferID).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Transfer not found")
+				}
+
+				// Check availability if increasing quantity
+				if delta > 0 && transfer.AvailableCount < delta {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusBadRequest, fmt.Sprintf("Not enough cabs available. Available: %d, Requested Additional: %d", transfer.AvailableCount, delta))
+				}
+
+				// Update inventory
+				if err := tx.Model(&transfer).Update("available_count", gorm.Expr("available_count - ?", delta)).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update transfer inventory")
+				}
+
+				// Update booking quantity
+				if err := tx.Model(&booking).Update("cabs_booked", *req.Quantity).Error; err != nil {
+					tx.Rollback()
+					return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update booking quantity")
+				}
+			}
+
+			// Commit inventory changes
+			if err := tx.Commit().Error; err != nil {
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to commit inventory updates")
+			}
+		}
+
+		// Update cart item (including status/notes if present)
 		if err := m.DB.Model(&cartItem).Updates(updates).Error; err != nil {
 			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update cart item")
 		}
@@ -305,13 +474,56 @@ func (m *Repository) RemoveFromCart(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Event is finalized and locked")
 	}
 
+	// Find item first to get booking IDs
+	var cartItem models.CartItem
+	if err := m.DB.Where("id = ? AND event_id = ?", cartItemID, eventID).First(&cartItem).Error; err != nil {
+		return utils.ErrorResponse(c, fiber.StatusNotFound, "Cart item not found")
+	}
+
+	// Start transaction
+	tx := m.DB.Begin()
+
+	// Restore inventory
+	if cartItem.Type == "flight" && cartItem.FlightBookingID != nil {
+		var booking models.FlightBooking
+		if err := tx.First(&booking, cartItem.FlightBookingID).Error; err == nil {
+			// Restore seats
+			if err := tx.Model(&models.Flight{}).Where("id = ?", booking.FlightID).
+				Update("available_seats", gorm.Expr("available_seats + ?", booking.SeatsBooked)).Error; err != nil {
+				tx.Rollback()
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to restore flight seats")
+			}
+			// Delete booking
+			if err := tx.Delete(&booking).Error; err != nil {
+				tx.Rollback()
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete flight booking")
+			}
+		}
+	} else if cartItem.Type == "transfer" && cartItem.TransferBookingID != nil {
+		var booking models.TransferBooking
+		if err := tx.First(&booking, cartItem.TransferBookingID).Error; err == nil {
+			// Restore count
+			if err := tx.Model(&models.Transfer{}).Where("id = ?", booking.TransferID).
+				Update("available_count", gorm.Expr("available_count + ?", booking.CabsBooked)).Error; err != nil {
+				tx.Rollback()
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to restore transfer cabs")
+			}
+			// Delete booking
+			if err := tx.Delete(&booking).Error; err != nil {
+				tx.Rollback()
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete transfer booking")
+			}
+		}
+	}
+
 	// Delete cart item
-	result := m.DB.Where("id = ? AND event_id = ?", cartItemID, eventID).Delete(&models.CartItem{})
-	if result.Error != nil {
+	if err := tx.Delete(&cartItem).Error; err != nil {
+		tx.Rollback()
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to remove cart item")
 	}
-	if result.RowsAffected == 0 {
-		return utils.ErrorResponse(c, fiber.StatusNotFound, "Cart item not found")
+
+	if err := tx.Commit().Error; err != nil {
+		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to commit removal")
 	}
 
 	// Invalidate Cache
@@ -364,30 +576,24 @@ func (m *Repository) UpdateCartStatus(c *fiber.Ctx) error {
 func (m *Repository) buildHierarchicalCartResponse(eventID string, cartItems []models.CartItem) (models.CartResponse, error) {
 	eventUUID, _ := uuid.Parse(eventID)
 	response := models.CartResponse{
-		EventID: eventUUID,
-		Hotels:  []models.HotelCartGroup{},
-		Flights: []models.CartItemDetail{},
+		EventID:   eventUUID,
+		Hotels:    []models.HotelCartGroup{},
+		Flights:   []models.CartItemDetail{},
+		Transfers: []models.CartItemDetail{},
 	}
 
 	// Group items by hotel
 	hotelGroups := make(map[string]*models.HotelCartGroup)
 
 	// Collect all IDs for batch fetching
-	var roomIDs, banquetIDs, cateringIDs []string
+	var roomIDs, banquetIDs, cateringIDs, flightIDs, transferIDs []string
 	var hotelIDs []string
 
 	for _, item := range cartItems {
 		if item.Type == "flight" {
-			// Add flights directly to response
-			response.Flights = append(response.Flights, models.CartItemDetail{
-				ID:          item.ID,
-				Type:        item.Type,
-				Status:      item.Status,
-				Quantity:    item.Quantity,
-				LockedPrice: item.LockedPrice,
-				Notes:       item.Notes,
-				CreatedAt:   item.CreatedAt,
-			})
+			flightIDs = append(flightIDs, item.RefID)
+		} else if item.Type == "transfer" {
+			transferIDs = append(transferIDs, item.RefID)
 		} else {
 			// Group by hotel
 			hotelID := ""
@@ -422,12 +628,44 @@ func (m *Repository) buildHierarchicalCartResponse(eventID string, cartItems []m
 	rooms := m.fetchRoomDetails(roomIDs)
 	banquets := m.fetchBanquetDetails(banquetIDs)
 	caterings := m.fetchCateringDetails(cateringIDs)
+	flights := m.fetchFlightDetails(flightIDs)
+	transfers := m.fetchTransferDetails(transferIDs)
 	hotels := m.fetchHotelDetails(hotelIDs)
 
 	// Map items to groups with details
 	for _, item := range cartItems {
 		if item.Type == "flight" {
-			continue // Already handled
+			cartDetail := models.CartItemDetail{
+				ID:          item.ID,
+				Type:        item.Type,
+				Status:      item.Status,
+				Quantity:    item.Quantity,
+				LockedPrice: item.LockedPrice,
+				Notes:       item.Notes,
+				CreatedAt:   item.CreatedAt,
+			}
+			if flightDetail, ok := flights[item.RefID]; ok {
+				cartDetail.FlightDetails = flightDetail
+			}
+			response.Flights = append(response.Flights, cartDetail)
+			continue
+		}
+
+		if item.Type == "transfer" {
+			cartDetail := models.CartItemDetail{
+				ID:          item.ID,
+				Type:        item.Type,
+				Status:      item.Status,
+				Quantity:    item.Quantity,
+				LockedPrice: item.LockedPrice,
+				Notes:       item.Notes,
+				CreatedAt:   item.CreatedAt,
+			}
+			if transferDetail, ok := transfers[item.RefID]; ok {
+				cartDetail.TransferDetails = transferDetail
+			}
+			response.Transfers = append(response.Transfers, cartDetail)
+			continue
 		}
 
 		hotelID := ""
@@ -543,6 +781,38 @@ func (m *Repository) fetchCateringDetails(cateringIDs []string) map[string]model
 
 	for _, catering := range caterings {
 		result[fmt.Sprintf("%d", catering.ID)] = catering
+	}
+	return result
+}
+
+// fetchFlightDetails fetches flight details for given flight IDs
+func (m *Repository) fetchFlightDetails(flightIDs []string) map[string]models.Flight {
+	result := make(map[string]models.Flight)
+	if len(flightIDs) == 0 {
+		return result
+	}
+
+	var flights []models.Flight
+	m.DB.Where("id IN ?", flightIDs).Find(&flights)
+
+	for _, flight := range flights {
+		result[flight.ID.String()] = flight
+	}
+	return result
+}
+
+// fetchTransferDetails fetches transfer details for given transfer IDs
+func (m *Repository) fetchTransferDetails(transferIDs []string) map[string]models.Transfer {
+	result := make(map[string]models.Transfer)
+	if len(transferIDs) == 0 {
+		return result
+	}
+
+	var transfers []models.Transfer
+	m.DB.Where("id IN ?", transferIDs).Find(&transfers)
+
+	for _, transfer := range transfers {
+		result[transfer.ID.String()] = transfer
 	}
 	return result
 }
