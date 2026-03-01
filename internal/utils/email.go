@@ -1,54 +1,73 @@
 package utils
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
-	"net/smtp"
-	"os"
+	"net/http"
+	"time"
+
+	"github.com/akashtripathi12/TBO_Backend/internal/config"
 )
 
-// SendEmail sends an email using Gmail SMTP
-// It reads SMTP_EMAIL and SMTP_PASS from environment variables
-// If credentials are missing, it logs the email to the console (useful for dev)
-func SendEmail(to []string, subject string, body string) error {
-	from := os.Getenv("SMTP_EMAIL")
-	password := os.Getenv("SMTP_PASS")
-
-	// Development mode: Log if credentials missing
-	if from == "" || password == "" {
-		log.Printf("⚠️ [DEV MODE] Email to %v\nSubject: %s\nBody (truncated): %s...\n", to, subject, body[:min(len(body), 50)])
-		log.Println("ℹ️ Set SMTP_EMAIL and SMTP_PASS to send real emails.")
-		return nil
-	}
-
-	// SMTP Server configuration
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
-
-	// Message construction
-	message := []byte(fmt.Sprintf("To: %s\r\n"+
-		"Subject: %s\r\n"+
-		"MIME-Version: 1.0\r\n"+
-		"Content-Type: text/html; charset=\"UTF-8\"\r\n"+
-		"\r\n"+
-		"%s\r\n", to[0], subject, body))
-
-	// Authentication
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	// Sending email
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, message)
-	if err != nil {
-		return fmt.Errorf("failed to send email: %w", err)
-	}
-
-	log.Printf("📧 Email sent to %v", to)
-	return nil
+// EmailBridgePayload defines the body structure for Google Apps Script
+type EmailBridgePayload struct {
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Body    string `json:"body"`
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// SendEmail sends an email using Google Apps Script Web App bridge
+func SendEmail(cfg *config.Config, to []string, subject string, body string) error {
+	scriptURL := cfg.GoogleScriptURL
+	if scriptURL == "" {
+		return fmt.Errorf("GOOGLE_SCRIPT_URL missing - cannot send email")
 	}
-	return b
+
+	// Google Script POST only supports one 'to' at a time in our current script
+	// or we join them. Since our worker typically sends one per guest/family,
+	// we'll use the first one.
+	targetEmail := to[0]
+
+	payload := EmailBridgePayload{
+		To:      targetEmail,
+		Subject: subject,
+		Body:    body,
+	}
+
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal email payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", scriptURL, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{
+		Timeout: 30 * time.Second, // Google Scripts can be slow
+	}
+
+	log.Printf("📡 [DEBUG] Sending Google Script bridge request (Target: %s)", targetEmail)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("❌ [DEBUG] Google Script Call Failed: %v", err)
+		return fmt.Errorf("failed to call Google Script: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	log.Printf("📡 [DEBUG] Google Script Response Status: %d | Body: %s", resp.StatusCode, string(respBody))
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusFound {
+		return fmt.Errorf("Google Script error (Status %d): %s", resp.StatusCode, string(respBody))
+	}
+
+	log.Printf("📧 Email sent to %s via Google Script bridge", targetEmail)
+	return nil
 }
