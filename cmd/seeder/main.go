@@ -39,6 +39,8 @@ func main() {
 	log.Println("⚠️  STARTING DATABASE RESET...")
 	// Order matters: drop child tables first
 	tables := []string{
+		"negotiation_rounds",
+		"negotiation_sessions",
 		"cart_items",
 		"flight_bookings",
 		"transfer_bookings",
@@ -79,6 +81,8 @@ func main() {
 		&models.Guest{},
 		&models.GuestAllocation{},
 		&models.CartItem{},
+		&models.NegotiationSession{},
+		&models.NegotiationRound{},
 		&models.Flight{},
 		&models.FlightBooking{},
 		&models.Transfer{},
@@ -405,8 +409,10 @@ func main() {
 		log.Println("🛒 Seeding Cart with Flight and Transfer Bookings...")
 
 		// Find one flight to book
+		var flight models.Flight
+		var cartItemF models.CartItem
 		if len(flights) > 0 {
-			flight := flights[0]
+			flight = flights[0]
 			fb := models.FlightBooking{
 				FlightID:    flight.ID,
 				EventID:     event.ID,
@@ -417,7 +423,7 @@ func main() {
 			}
 			db.Create(&fb)
 
-			cartItemF := models.CartItem{
+			cartItemF = models.CartItem{
 				EventID:         event.ID,
 				Type:            "flight",
 				RefID:           flight.ID.String(),
@@ -453,12 +459,45 @@ func main() {
 				TransferBookingID: &tb.ID,
 				Status:            "wishlist",
 				Quantity:          1,
-				LockedPrice:       transfer.BasePricePerCab,
-				AddedBy:           headGuestUser.ID,
 			}
 			db.Create(&cartItemT)
 			log.Printf("   ✓ Added Transfer Booking to Cart: %s (%s)", tb.ID, transfer.CarModel)
 		}
+
+		// 14. Seed Negotiation Session
+		log.Println("🤝 Seeding Negotiation Session...")
+		negotiationSession := models.NegotiationSession{
+			ID:           uuid.New(),
+			EventID:      event.ID,
+			Status:       models.NegotiationStatusWaitingForTboAgent,
+			CurrentRound: 1,
+		}
+		db.Create(&negotiationSession)
+
+		proposalSnapshot, _ := json.Marshal([]models.ProposalItem{
+			{
+				CartItemID:    cartItemF.ID,
+				Type:          "flight",
+				RefID:         flight.ID.String(),
+				Name:          flight.FlightNumber,
+				Quantity:      2,
+				Price:         flight.BasePrice * 0.9, // 10% discount
+				OriginalPrice: flight.BasePrice,
+				Currency:      "INR",
+			},
+		})
+
+		negotiationRound := models.NegotiationRound{
+			ID:               uuid.New(),
+			SessionID:        negotiationSession.ID,
+			RoundNumber:      1,
+			ModifiedBy:       models.NegotiationModifierAgent,
+			ProposalSnapshot: datatypes.JSON(proposalSnapshot),
+			Remarks:          "Requested 10% discount for volume booking.",
+			ReasonCode:       models.NegotiationReasonVolumeDiscount,
+		}
+		db.Create(&negotiationRound)
+		log.Printf("   ✓ Seeded Negotiation Session: %s with Round 1", negotiationSession.ID)
 
 		log.Println("🎉 DEMO SEEDING COMPLETED!")
 		log.Printf("📊 Summary:")
