@@ -263,9 +263,8 @@ FRONTEND_URL=http://localhost:3000
 # JWT
 JWT_SECRET=your-super-secret-key
 
-# Email
-SMTP_EMAIL=your-mail
-SMTP_PASS=your-mail-app-password
+# Email (Google Apps Script)
+GOOGLE_SCRIPT_URL=https://script.google.com/macros/s/.../exec
 ```
 
 | Variable | Default | Description |
@@ -277,8 +276,7 @@ SMTP_PASS=your-mail-app-password
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated CORS origins |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend base URL (used in email links) |
 | `JWT_SECRET` | — | Secret for signing JWT tokens |
-| `SMTP_EMAIL` | `your-mail` | SMTP email address for sending emails |
-| `SMTP_PASS` | `your-mail-app-password` | SMTP application password |
+| `GOOGLE_SCRIPT_URL` | — | URL for the Google Apps Script email bridge |
 
 ---
 
@@ -415,32 +413,63 @@ Explore and test the complete API suite using our detailed Postman Workspace:
 
 ---
 
+### 7. Setup Email Bridge (Optional but Recommended)
+
+TBO Backend uses a Google Apps Script bridge for reliable email delivery.
+
+1.  Go to [script.google.com](https://script.google.com).
+2.  Create a new project.
+3.  Paste the following code:
+
+```javascript
+function doPost(e) {
+  var data = JSON.parse(e.postData.contents);
+  var to = data.to;
+  var subject = data.subject;
+  var body = data.body;
+  
+  try {
+    MailApp.sendEmail({
+      to: to,
+      subject: subject,
+      htmlBody: body
+    });
+    return ContentService.createTextOutput(JSON.stringify({"status": "success"})).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({"status": "error", "message": error.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+```
+
+4.  Deploy as "Web App".
+5.  Set "Execute as" to **Me** and "Who has access" to **Anyone**.
+6.  Copy the Web App URL and set it as `GOOGLE_SCRIPT_URL` in your `.env`.
+
+---
+
 ## 📁 Folder Structure
 
 ```text
 TBO_Backend/
 ├── cmd/
-│   ├── api/                    # Main application entry point
-│   ├── seed/                   # Data seeder scripts
-│   ├── migrate_lifecycle/      # Migration runners
-│   ├── migrate_negotiation/    # Negotiation schema migrations
-│   └── ...                     # Various dev/debug utility scripts
+│   ├── api/                    # Main application entry point (Server + Worker)
+│   ├── seeder/                 # Core data seeder
+│   └── seed_tbo_agent/         # Admin account seeder
 │
 ├── internal/
-│   ├── config/                 # Config loading from env vars
-│   ├── handlers/               # HTTP handler functions (business logic)
-│   ├── middleware/             # Fiber middleware (Auth, CORS, Logger, Recovery)
-│   ├── models/                 # GORM models & DTOs
-│   ├── queue/                  # Asynq task definitions & background workers
-│   ├── routes/                 # All API route registrations
-│   ├── store/                  # DB & Redis initialization
-│   ├── utils/                  # JWT, response helpers, cache invalidation
-│   └── scripts/                # Internal utility scripts
+│   ├── config/                 # Centralized environment & config loading
+│   ├── handlers/               # HTTP Business Logic
+│   ├── middleware/             # Fiber security & utility middleware
+│   ├── models/                 # Database Schema (GORM)
+│   ├── queue/                  # Asynq tasks & background worker logic
+│   ├── routes/                 # API endpoint definitions
+│   ├── store/                  # Database & Redis connectors
+│   └── utils/                  # Shared utilities (JWT, Response, Email Bridge)
 │
-├── migrations/                 # SQL migration files
-├── docs/                       # Postman collections
-├── go.mod                      # Go module dependencies
-└── .env                        # Environment configurations
+├── migrations/                 # PostgreSQL schema migrations
+├── scripts/                    # Development & utility scripts
+├── go.mod                      # Project dependencies
+└── .env                        # Local configuration
 ```
 
 ---
