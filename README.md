@@ -277,8 +277,8 @@ SMTP_PASS=your-mail-app-password
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated CORS origins |
 | `FRONTEND_URL` | `http://localhost:3000` | Frontend base URL (used in email links) |
 | `JWT_SECRET` | — | Secret for signing JWT tokens |
-| `SMTP_EMAIL` | `tboemailservice@gmail.com` | SMTP email address for sending emails |
-| `SMTP_PASS` | `qnsy jmcx zzhe hzgq` | SMTP application password |
+| `SMTP_EMAIL` | `your-mail` | SMTP email address for sending emails |
+| `SMTP_PASS` | `your-mail-app-password` | SMTP application password |
 
 ---
 
