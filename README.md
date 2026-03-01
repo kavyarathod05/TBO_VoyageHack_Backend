@@ -264,8 +264,8 @@ FRONTEND_URL=http://localhost:3000
 JWT_SECRET=your-super-secret-key
 
 # Email
-SMTP_EMAIL=tboemailservice@gmail.com
-SMTP_PASS=qnsy jmcx zzhe hzgq
+SMTP_EMAIL=your-mail
+SMTP_PASS=your-mail-app-password
 ```
 
 | Variable | Default | Description |
