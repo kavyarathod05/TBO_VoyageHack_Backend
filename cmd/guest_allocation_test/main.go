@@ -103,7 +103,7 @@ func main() {
 	}
 
 	eventID := uuid.New()
-	headGuestID := uuid.New()
+	eventManagerID := uuid.New()
 
 	// 4. Create Room Offers (50 Rooms Total)
 	// Type A: Standard (Cap 2) - 20 rooms
@@ -152,7 +152,7 @@ func main() {
 	event := models.Event{
 		ID:             eventID,
 		AgentID:        agent.ID,
-		HeadGuestID:    headGuestID,
+		EventManagerID: eventManagerID,
 		HotelID:        hotelID,
 		Name:           "50 Guests NO Allocation Test",
 		Status:         "allocating",

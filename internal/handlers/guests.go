@@ -199,7 +199,7 @@ func (m *Repository) CreateGuest(c *fiber.Ctx) error {
 
 // Add Sub Guest (Not in immediate scope but good to keep generic)
 func (m *Repository) AddSubGuest(c *fiber.Ctx) error {
-	// Logic to link sub-guest to head guest would go here
+	// Logic to link sub-guest to event manager would go here
 	// For now, just create a guest
 	return m.CreateGuest(c)
 }

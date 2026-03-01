@@ -113,15 +113,15 @@ func (m *Repository) GetEvents(c *fiber.Ctx) error {
 				Count(&pendingGuests)
 		}
 
-		// And maybe lacking a head guest
+		// And maybe lacking an event manager
 		pendingActions := int(pendingGuests)
 		var pendingActionDetails []string
 		if pendingGuests > 0 {
 			pendingActionDetails = append(pendingActionDetails, fmt.Sprintf("%d guest(s) need room allocation", pendingGuests))
 		}
-		if evt.HeadGuestID == uuid.Nil {
+		if evt.EventManagerID == uuid.Nil {
 			pendingActions++
-			pendingActionDetails = append(pendingActionDetails, "Assign a Head Guest")
+			pendingActionDetails = append(pendingActionDetails, "Assign an Event Manager")
 		}
 
 		// Budget Spent: prefer stored value (set by Make Payment), else compute from allocations
@@ -253,9 +253,9 @@ func (m *Repository) GetEvent(c *fiber.Ctx) error {
 	if pendingGuests > 0 {
 		pendingActionDetails = append(pendingActionDetails, fmt.Sprintf("%d guest(s) need room allocation", pendingGuests))
 	}
-	if event.HeadGuestID == uuid.Nil {
+	if event.EventManagerID == uuid.Nil {
 		pendingActions++
-		pendingActionDetails = append(pendingActionDetails, "Assign a Head Guest")
+		pendingActionDetails = append(pendingActionDetails, "Assign an Event Manager")
 	}
 
 	// Calculate Budget Spent (Sum of LockedPrice in Allocations)
@@ -601,11 +601,11 @@ func (m *Repository) DeleteEvent(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete cart items")
 	}
 
-	// Delete Head Guest
-	if event.HeadGuestID != uuid.Nil {
-		if err := tx.Where("id = ?", event.HeadGuestID).Delete(&models.User{}).Error; err != nil {
+	// Delete Event Manager
+	if event.EventManagerID != uuid.Nil {
+		if err := tx.Where("id = ?", event.EventManagerID).Delete(&models.User{}).Error; err != nil {
 			tx.Rollback()
-			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete head guest")
+			return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to delete event manager")
 		}
 	}
 
@@ -629,16 +629,16 @@ func (m *Repository) DeleteEvent(c *fiber.Ctx) error {
 	})
 }
 
-type AssignHeadGuestRequest struct {
+type AssignEventManagerRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Phone string `json:"phone"`
 	Age   int    `json:"age"`
 }
 
-func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
+func (m *Repository) AssignEventManager(c *fiber.Ctx) error {
 	id := c.Params("id")
-	var req AssignHeadGuestRequest
+	var req AssignEventManagerRequest
 	if err := c.BodyParser(&req); err != nil {
 		return utils.ErrorResponse(c, fiber.StatusBadRequest, "Invalid request body")
 	}
@@ -654,8 +654,8 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 	}
 
 	// 1. Create or Find User
-	// Create the Head Guest User account
-	// TODO: Send email to head guest to set their password.
+	// Create the Event Manager User account
+	// TODO: Send email to event manager to set their password.
 	// For now, setting a default password or handling this logic is required since PasswordHash is Not Null.
 	// We'll use a placeholder hash for "ChangeMe123!"
 	// defaultHash := "$2a$10$3QxDjD1ylg.6T4x.5.6.7.8.9.0.1.2.3.4.5.6.7.8.9.0.1.2" // Example hash or generate real one
@@ -671,7 +671,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 	if err := tx.Where("email = ?", req.Email).First(&user).Error; err != nil {
 		// If user does not exist, create a new one
 		if err == gorm.ErrRecordNotFound {
-			log.Printf("👤 Creating new head guest user: %s", req.Email)
+			log.Printf("👤 Creating new event manager user: %s", req.Email)
 			// Create new user
 			tempPassword = utils.GenerateTempPassword()
 			hashedPassword, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
@@ -683,7 +683,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 			user = models.User{
 				ID:           uuid.New(),
 				Email:        req.Email,
-				Role:         "head_guest",
+				Role:         "event_manager",
 				Name:         req.Name,
 				Phone:        req.Phone,
 				PasswordHash: string(hashedPassword),
@@ -691,7 +691,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 
 			if err := tx.Create(&user).Error; err != nil {
 				tx.Rollback()
-				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create head guest user: "+err.Error())
+				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to create event manager user: "+err.Error())
 			}
 		} else {
 			tx.Rollback()
@@ -699,10 +699,10 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 		}
 	} else {
 		log.Printf("👤 User already exists: %s", req.Email)
-		// If user exists, update their details if necessary and ensure role is head_guest
-		if user.Role != "head_guest" {
-			user.Role = "head_guest"
-			if err := tx.Model(&user).Update("role", "head_guest").Error; err != nil {
+		// If user exists, update their details if necessary and ensure role is event_manager
+		if user.Role != "event_manager" {
+			user.Role = "event_manager"
+			if err := tx.Model(&user).Update("role", "event_manager").Error; err != nil {
 				tx.Rollback()
 				return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update existing user's role: "+err.Error())
 			}
@@ -731,7 +731,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 		return utils.ErrorResponse(c, fiber.StatusNotFound, "Event not found")
 	}
 
-	if err := tx.Model(&event).Update("head_guest_id", user.ID).Error; err != nil {
+	if err := tx.Model(&event).Update("event_manager_id", user.ID).Error; err != nil {
 		tx.Rollback()
 		return utils.ErrorResponse(c, fiber.StatusInternalServerError, "Failed to update event")
 	}
@@ -767,10 +767,10 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 
 	// Send Email with Credentials if new user
 	if tempPassword != "" {
-		subject := fmt.Sprintf("Head Guest Access - %s", event.Name)
+		subject := fmt.Sprintf("Event Manager Access - %s", event.Name)
 		body := fmt.Sprintf(`
 			<h1>Welcome to %s!</h1>
-			<p>You have been assigned as the Head Guest.</p>
+			<p>You have been assigned as the Event Manager.</p>
 			<p><strong>Login Details:</strong></p>
 			<ul>
 				<li>Email: %s</li>
@@ -798,7 +798,7 @@ func (m *Repository) AssignHeadGuest(c *fiber.Ctx) error {
 	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{
-		"message": "Head Guest Assigned Successfully. Credentials sent via email.",
+		"message": "Event Manager Assigned Successfully. Credentials sent via email.",
 		"user":    user,
 	})
 }

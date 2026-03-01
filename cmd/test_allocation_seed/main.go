@@ -143,7 +143,7 @@ func main() {
 	// 2.2 Create Event
 	// Need Agent and HeadGuest UUIDs.
 	agentID := uuid.New()
-	headGuestID := uuid.New()
+	eventManagerID := uuid.New()
 
 	// Prepare Inventory JSON
 	inventory := []InventoryItem{
@@ -168,7 +168,7 @@ func main() {
 	event := models.Event{
 		ID:             eventID,
 		AgentID:        agentID,
-		HeadGuestID:    headGuestID,
+		EventManagerID: eventManagerID,
 		HotelID:        hotelID,
 		Name:           "Test Allocation Event",
 		Status:         "allocating",

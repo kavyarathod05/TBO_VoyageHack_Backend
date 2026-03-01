@@ -27,14 +27,14 @@ import (
 
 // Test data structure
 type TestData struct {
-	DB         *gorm.DB
-	Agent      models.User
-	HeadGuest  models.User
-	Event      models.Event
-	RoomOffers []models.RoomOffer
-	Families   map[string]FamilyData
-	AgentToken string
-	HeadToken  string
+	DB                *gorm.DB
+	Agent             models.User
+	EventManager      models.User
+	Event             models.Event
+	RoomOffers        []models.RoomOffer
+	Families          map[string]FamilyData
+	AgentToken        string
+	EventManagerToken string
 }
 
 type FamilyData struct {
@@ -90,18 +90,18 @@ func seedTestData(t *testing.T, db *gorm.DB) *TestData {
 	}
 	db.Create(&agent)
 
-	// Create Head Guest
-	headGuestPassword := "HeadGuestPass123!"
-	hashedHeadPass, _ := bcrypt.GenerateFromPassword([]byte(headGuestPassword), bcrypt.DefaultCost)
-	headGuest := models.User{
+	// Create Event Manager
+	eventManagerPassword := "EventManagerPass123!"
+	hashedEventManagerPass, _ := bcrypt.GenerateFromPassword([]byte(eventManagerPassword), bcrypt.DefaultCost)
+	eventManager := models.User{
 		ID:           uuid.New(),
 		Name:         "Priya Sharma",
-		Email:        "priya.headguest@example.com",
-		PasswordHash: string(hashedHeadPass),
+		Email:        "priya.eventmanager@example.com",
+		PasswordHash: string(hashedEventManagerPass),
 		Phone:        "+91-9123456789",
-		Role:         "head_guest",
+		Role:         "event_manager",
 	}
-	db.Create(&headGuest)
+	db.Create(&eventManager)
 
 	// Create Country and City
 	country := models.Country{Code: "IN", Name: "India", PhoneCode: "+91"}
@@ -187,7 +187,7 @@ func seedTestData(t *testing.T, db *gorm.DB) *TestData {
 	event := models.Event{
 		ID:             uuid.New(),
 		AgentID:        agent.ID,
-		HeadGuestID:    headGuest.ID,
+		EventManagerID: eventManager.ID,
 		HotelID:        hotel.ID,
 		Name:           "Sharma Family Wedding",
 		Location:       "Goa, India",
@@ -245,17 +245,17 @@ func seedTestData(t *testing.T, db *gorm.DB) *TestData {
 
 	// Generate JWT tokens
 	agentToken, _ := utils.GenerateToken(agent.ID, agent.Email, agent.Role)
-	headToken, _ := utils.GenerateToken(headGuest.ID, headGuest.Email, headGuest.Role)
+	eventManagerToken, _ := utils.GenerateToken(eventManager.ID, eventManager.Email, eventManager.Role)
 
 	return &TestData{
-		DB:         db,
-		Agent:      agent,
-		HeadGuest:  headGuest,
-		Event:      event,
-		RoomOffers: roomOffers,
-		Families:   families,
-		AgentToken: agentToken,
-		HeadToken:  headToken,
+		DB:                db,
+		Agent:             agent,
+		EventManager:      eventManager,
+		Event:             event,
+		RoomOffers:        roomOffers,
+		Families:          families,
+		AgentToken:        agentToken,
+		EventManagerToken: eventManagerToken,
 	}
 }
 
@@ -310,7 +310,7 @@ func TestAgentValidAllocation(t *testing.T) {
 	t.Log("✅ Test Passed: Agent Valid Allocation")
 }
 
-func TestHeadGuestValidAllocation(t *testing.T) {
+func TestEventManagerValidAllocation(t *testing.T) {
 	db := setupTestDB(t)
 	data := seedTestData(t, db)
 	app := createTestApp(db)
@@ -327,7 +327,7 @@ func TestHeadGuestValidAllocation(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/allocations", bytes.NewReader(bodyBytes))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+data.HeadToken)
+	req.Header.Set("Authorization", "Bearer "+data.EventManagerToken)
 
 	resp, err := app.Test(req, -1)
 	require.NoError(t, err)
@@ -337,9 +337,9 @@ func TestHeadGuestValidAllocation(t *testing.T) {
 	// Verify assigned_mode
 	var allocations []models.GuestAllocation
 	db.Where("event_id = ?", data.Event.ID).Find(&allocations)
-	assert.Equal(t, "head_guest_manual", allocations[0].AssignedMode, "Should be head_guest_manual")
+	assert.Equal(t, "event_manager_manual", allocations[0].AssignedMode, "Should be event_manager_manual")
 
-	t.Log("✅ Test Passed: Head Guest Valid Allocation")
+	t.Log("✅ Test Passed: Event Manager Valid Allocation")
 }
 
 func TestUnauthorizedAgent(t *testing.T) {
@@ -507,7 +507,7 @@ func TestAllocationAPIComplete(t *testing.T) {
 	fmt.Println(strings.Repeat("=", 60))
 
 	t.Run("Agent Valid Allocation", TestAgentValidAllocation)
-	t.Run("Head Guest Valid Allocation", TestHeadGuestValidAllocation)
+	t.Run("Event Manager Valid Allocation", TestEventManagerValidAllocation)
 	t.Run("Unauthorized Agent", TestUnauthorizedAgent)
 	t.Run("Capacity Violation", TestCapacityViolation)
 	t.Run("Inventory Exhaustion", TestInventoryExhaustion)

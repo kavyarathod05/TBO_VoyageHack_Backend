@@ -112,28 +112,28 @@ func main() {
 	// Ensure Agent Profile
 	db.Exec("INSERT INTO agent_profiles (user_id, agency_name, agency_code) VALUES (?, 'Seed Agency', 'SA001') ON CONFLICT (user_id) DO NOTHING", agent.ID)
 
-	// 3. Create Head Guest
-	hgEmail := "headguest@test.com"
-	hgPass := "Test@123"
-	hashedHgPass, _ := bcrypt.GenerateFromPassword([]byte(hgPass), bcrypt.DefaultCost)
-	headGuest := models.User{
-		Email:        hgEmail,
-		PasswordHash: string(hashedHgPass),
-		Role:         "head_guest",
-		Name:         "Seed Head Guest",
+	// 3. Create Event Manager
+	emEmail := "eventmanager@test.com"
+	emPass := "Test@123"
+	hashedEmPass, _ := bcrypt.GenerateFromPassword([]byte(emPass), bcrypt.DefaultCost)
+	eventManager := models.User{
+		Email:        emEmail,
+		PasswordHash: string(hashedEmPass),
+		Role:         "event_manager",
+		Name:         "Seed Event Manager",
 		Phone:        "0987654321",
 	}
 
-	// Upsert Head Guest
-	var existingHG models.User
-	if err := db.Where("email = ?", hgEmail).First(&existingHG).Error; err != nil {
-		headGuest.ID = uuid.New()
-		if err := db.Create(&headGuest).Error; err != nil {
-			log.Fatalf("Failed to create head guest: %v", err)
+	// Upsert Event Manager
+	var existingEM models.User
+	if err := db.Where("email = ?", emEmail).First(&existingEM).Error; err != nil {
+		eventManager.ID = uuid.New()
+		if err := db.Create(&eventManager).Error; err != nil {
+			log.Fatalf("Failed to create event manager: %v", err)
 		}
 	} else {
-		headGuest = existingHG
-		db.Model(&headGuest).Updates(map[string]interface{}{"password_hash": string(hashedHgPass), "role": "head_guest"})
+		eventManager = existingEM
+		db.Model(&eventManager).Updates(map[string]interface{}{"password_hash": string(hashedEmPass), "role": "event_manager"})
 	}
 
 	// 4. Create Events
@@ -155,7 +155,7 @@ func main() {
 		event := models.Event{
 			ID:             eventID,
 			AgentID:        agent.ID,
-			HeadGuestID:    headGuest.ID,
+			EventManagerID: eventManager.ID,
 			HotelID:        hotelID,
 			Name:           ed.Title,
 			Location:       "Seed Location",
@@ -169,9 +169,9 @@ func main() {
 		if err := db.Where("agent_id = ? AND name = ?", agent.ID, ed.Title).First(&existingEvent).Error; err == nil {
 			event.ID = existingEvent.ID
 			db.Model(&existingEvent).Updates(map[string]interface{}{
-				"status":          ed.Status,
-				"head_guest_id":   headGuest.ID,
-				"rooms_inventory": datatypes.JSON(inventoryJSON),
+				"status":           ed.Status,
+				"event_manager_id": eventManager.ID,
+				"rooms_inventory":  datatypes.JSON(inventoryJSON),
 			})
 		} else {
 			if err := db.Create(&event).Error; err != nil {
@@ -247,9 +247,9 @@ func main() {
 	fmt.Printf("Email: %s\n", agentEmail)
 	fmt.Printf("Password: %s\n", agentPass)
 
-	fmt.Println("\nHEAD GUEST LOGIN:")
-	fmt.Printf("Email: %s\n", hgEmail)
-	fmt.Printf("Password: %s\n", hgPass)
+	fmt.Println("\nEVENT MANAGER LOGIN:")
+	fmt.Printf("Email: %s\n", emEmail)
+	fmt.Printf("Password: %s\n", emPass)
 
 	fmt.Println("\nEVENT IDS:")
 	for i, ed := range eventsData {

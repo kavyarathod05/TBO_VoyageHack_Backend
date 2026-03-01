@@ -132,39 +132,39 @@ func main() {
 	}
 	fmt.Println("✅ Updated Event Rooms Inventory")
 
-	// 3. Head Guest
-	var headGuest models.Guest
-	if event.HeadGuestID != uuid.Nil {
-		if err := db.First(&headGuest, "id = ?", event.HeadGuestID).Error; err == nil {
-			fmt.Printf("ℹ️ Head Guest already exists: %s\n", headGuest.ID)
+	// 3. Event Manager
+	var eventManager models.Guest
+	if event.EventManagerID != uuid.Nil {
+		if err := db.First(&eventManager, "id = ?", event.EventManagerID).Error; err == nil {
+			fmt.Printf("ℹ️ Event Manager already exists: %s\n", eventManager.ID)
 		} else {
 			// ID exists but not in DB? Reset.
-			event.HeadGuestID = uuid.Nil
+			event.EventManagerID = uuid.Nil
 		}
 	}
 
-	if event.HeadGuestID == uuid.Nil {
-		headGuestID := uuid.New()
-		familyName := fmt.Sprintf("HeadFamily-%d", rand.Intn(1000))
-		headGuest = models.Guest{
-			ID:          headGuestID,
-			Name:        "Head Guest " + familyName,
+	if event.EventManagerID == uuid.Nil {
+		eventManagerID := uuid.New()
+		familyName := fmt.Sprintf("EventFamily-%d", rand.Intn(1000))
+		eventManager = models.Guest{
+			ID:          eventManagerID,
+			Name:        "Event Manager " + familyName,
 			Age:         35,
 			Type:        "Adult", // Helper function sets this?
 			Phone:       "555-0100",
-			Email:       fmt.Sprintf("headguest-%d@example.com", rand.Intn(10000)),
+			Email:       fmt.Sprintf("eventmanager-%d@example.com", rand.Intn(10000)),
 			EventID:     event.ID,
 			FamilyID:    uuid.New(), // Its own family
 			ArrivalDate: time.Now(),
 		}
-		if err := db.Create(&headGuest).Error; err != nil {
-			log.Fatalf("Failed to create head guest: %v", err)
+		if err := db.Create(&eventManager).Error; err != nil {
+			log.Fatalf("Failed to create event manager: %v", err)
 		}
-		event.HeadGuestID = headGuest.ID
+		event.EventManagerID = eventManager.ID
 		if err := db.Save(&event).Error; err != nil {
-			log.Fatalf("Failed to update event head guest: %v", err)
+			log.Fatalf("Failed to update event manager: %v", err)
 		}
-		fmt.Printf("✅ Created Head Guest: %s\n", headGuest.ID)
+		fmt.Printf("✅ Created Event Manager: %s\n", eventManager.ID)
 	}
 
 	// 4. Create 100 Guests (25 Families)
@@ -206,7 +206,7 @@ func main() {
 	fmt.Printf("🎉 Seed Complete!\n")
 	fmt.Printf("Event ID: %s\n", event.ID)
 	fmt.Printf("Hotel ID: %s\n", event.HotelID)
-	fmt.Printf("Head Guest ID: %s\n", event.HeadGuestID)
+	fmt.Printf("Event Manager ID: %s\n", event.EventManagerID)
 	fmt.Printf("Total Guests Created: %d\n", createdGuests)
 	fmt.Printf("Total Families Created: %d\n", createdFamilies)
 	fmt.Printf("Inventory JSON: %s\n", string(inventoryJSON))

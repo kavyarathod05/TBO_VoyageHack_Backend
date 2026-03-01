@@ -114,15 +114,15 @@ func main() {
 	}
 	db.Create(&agentProfile)
 
-	headGuestUser := models.User{
+	eventManagerUser := models.User{
 		ID:           uuid.New(),
 		Name:         "Global Event Manager",
-		Email:        "headguest@demo.com",
+		Email:        "eventmanager@demo.com",
 		PasswordHash: "$2a$10$5XQ/P7S1q1.H.5W/5.6.7uGvW8R.y6YEqg/kL5jD0j6qP6hD.fA1S", // Admin@123
 		Phone:        "+91-9123456789",
-		Role:         "head_guest",
+		Role:         "event_manager",
 	}
-	db.Create(&headGuestUser)
+	db.Create(&eventManagerUser)
 
 	// 4. Seed Geography
 	log.Println("🌍 Seeding Geography...")
@@ -388,7 +388,7 @@ func main() {
 		event := models.Event{
 			ID:             uuid.New(),
 			AgentID:        agentUser.ID,
-			HeadGuestID:    headGuestUser.ID,
+			EventManagerID: eventManagerUser.ID,
 			HotelID:        firstHotel.ID,
 			Name:           "Global Tech Summit 2026",
 			Location:       "New Delhi, India",
@@ -419,7 +419,7 @@ func main() {
 				SeatsBooked: 2,
 				PriceLocked: flight.BasePrice,
 				Status:      "pending",
-				BookedBy:    headGuestUser.ID,
+				BookedBy:    eventManagerUser.ID,
 			}
 			db.Create(&fb)
 
@@ -431,7 +431,7 @@ func main() {
 				Status:          "wishlist",
 				Quantity:        2,
 				LockedPrice:     flight.BasePrice,
-				AddedBy:         headGuestUser.ID,
+				AddedBy:         eventManagerUser.ID,
 			}
 			db.Create(&cartItemF)
 			log.Printf("   ✓ Added Flight Booking to Cart: %s (%s)", fb.ID, flight.FlightNumber)
@@ -448,7 +448,7 @@ func main() {
 				PickupLocation: "Airport",
 				DropLocation:   "Hotel",
 				Status:         "pending",
-				BookedBy:       headGuestUser.ID,
+				BookedBy:       eventManagerUser.ID,
 			}
 			db.Create(&tb)
 
@@ -501,7 +501,7 @@ func main() {
 
 		log.Println("🎉 DEMO SEEDING COMPLETED!")
 		log.Printf("📊 Summary:")
-		log.Printf("   - Users: 2 (1 Agent, 1 Head Guest)")
+		log.Printf("   - Users: 2 (1 Agent, 1 Event Manager)")
 		log.Printf("   - Hotels: 50")
 		log.Printf("   - Room Offers: %d", len(roomOffers)*50) // Approx
 		log.Printf("   - Events: 1 (%s)", event.Name)

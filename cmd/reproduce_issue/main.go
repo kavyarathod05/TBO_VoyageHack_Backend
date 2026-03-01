@@ -127,7 +127,7 @@ func main() {
 		ID:       uuid.New(),
 		EventID:  eventID,
 		FamilyID: familyID,
-		Name:     "Head Guest",
+		Name:     "Event Manager",
 		Type:     "Adult",
 	}
 	if err := db.Create(&guest).Error; err != nil {

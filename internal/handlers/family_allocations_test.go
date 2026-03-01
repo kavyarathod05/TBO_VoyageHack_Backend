@@ -60,15 +60,15 @@ func seedFamilyTestData(t *testing.T, db *gorm.DB) (models.Event, []models.Guest
 	}
 	db.Create(&agent)
 
-	// Create head guest
-	headGuest := models.User{
+	// Create event manager
+	eventManager := models.User{
 		ID:           uuid.New(),
-		Name:         "Test Head Guest",
-		Email:        "headguest@test.com",
+		Name:         "Test Event Manager",
+		Email:        "eventmanager@test.com",
 		PasswordHash: "hash",
-		Role:         "head_guest",
+		Role:         "event_manager",
 	}
-	db.Create(&headGuest)
+	db.Create(&eventManager)
 
 	// Create country and city
 	country := models.Country{Code: "IN", Name: "India", PhoneCode: "+91"}
@@ -145,7 +145,7 @@ func seedFamilyTestData(t *testing.T, db *gorm.DB) (models.Event, []models.Guest
 	event := models.Event{
 		ID:             uuid.New(),
 		AgentID:        agent.ID,
-		HeadGuestID:    headGuest.ID,
+		EventManagerID: eventManager.ID,
 		HotelID:        hotel.ID,
 		Name:           "Test Event",
 		Location:       "Test Location",
@@ -246,7 +246,7 @@ func TestValidFamilyAllocation(t *testing.T) {
 		"event_id":      event.ID.String(),
 		"family_id":     family1ID.String(),
 		"room_offer_id": roomOffers[0].ID,
-		"assigned_by":   "agent_manual",
+		"assigned_by":   "event_manager_manual",
 	}
 	bodyBytes, _ := json.Marshal(reqBody)
 

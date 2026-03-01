@@ -181,8 +181,8 @@ func AllocateFamilyHandler(db *gorm.DB) fiber.Handler {
 		var assignedMode string
 		if role == "agent" {
 			assignedMode = "agent_manual"
-		} else if role == "head_guest" {
-			assignedMode = "head_guest_manual"
+		} else if role == "event_manager" {
+			assignedMode = "event_manager_manual"
 		} else {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Not authorized for this event",
@@ -238,8 +238,8 @@ func AllocateFamilyHandler(db *gorm.DB) fiber.Handler {
 					"error": "Not authorized for this event",
 				})
 			}
-		} else if role == "head_guest" {
-			if userUUID != event.HeadGuestID {
+		} else if role == "event_manager" {
+			if userUUID != event.EventManagerID {
 				tx.Rollback()
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"error": "Not authorized for this event",
@@ -425,7 +425,7 @@ func FinalizeRoomsHandler(db *gorm.DB) fiber.Handler {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Invalid user role type"})
 		}
 
-		if role != "agent" && role != "head_guest" {
+		if role != "agent" && role != "event_manager" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 		}
 
@@ -455,8 +455,8 @@ func FinalizeRoomsHandler(db *gorm.DB) fiber.Handler {
 				tx.Rollback()
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized for this event"})
 			}
-		} else if role == "head_guest" {
-			if userUUID != event.HeadGuestID {
+		} else if role == "event_manager" {
+			if userUUID != event.EventManagerID {
 				tx.Rollback()
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized for this event"})
 			}
@@ -469,7 +469,7 @@ func FinalizeRoomsHandler(db *gorm.DB) fiber.Handler {
 
 		// Determine target status based on role
 		targetStatus := "finalized"
-		if role == "head_guest" {
+		if role == "event_manager" {
 			targetStatus = "locked"
 		}
 
@@ -517,7 +517,7 @@ func ReopenAllocationHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		if role != "agent" {
-			// Even if Head Guest technically calls this, block it. Only agent can reopen.
+			// Even if Event Manager technically calls this, block it. Only agent can reopen.
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Only agents can reopen allocations"})
 		}
 
@@ -610,7 +610,7 @@ func CheckInFamilyHandler(db *gorm.DB) fiber.Handler {
 		}
 
 		// Validate role
-		if role != "agent" && role != "head_guest" {
+		if role != "agent" && role != "event_manager" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Not authorized for this event",
 			})
@@ -648,8 +648,8 @@ func CheckInFamilyHandler(db *gorm.DB) fiber.Handler {
 					"error": "Not authorized for this event",
 				})
 			}
-		} else if role == "head_guest" {
-			if userUUID != event.HeadGuestID {
+		} else if role == "event_manager" {
+			if userUUID != event.EventManagerID {
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"error": "Not authorized for this event",
 				})
@@ -740,8 +740,8 @@ func UpdateAllocationHandler(db *gorm.DB) fiber.Handler {
 		var assignedMode string
 		if role == "agent" {
 			assignedMode = "agent_manual_update"
-		} else if role == "head_guest" {
-			assignedMode = "guest_manual_update"
+		} else if role == "event_manager" {
+			assignedMode = "event_manager_manual_update"
 		} else {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error": "Not authorized for this event",
@@ -821,8 +821,8 @@ func UpdateAllocationHandler(db *gorm.DB) fiber.Handler {
 					"error": "Not authorized for this event",
 				})
 			}
-		} else if role == "head_guest" {
-			if userUUID != event.HeadGuestID {
+		} else if role == "event_manager" {
+			if userUUID != event.EventManagerID {
 				tx.Rollback()
 				return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 					"error": "Not authorized for this event",
@@ -1004,7 +1004,7 @@ func AutoAllocateHandler(db *gorm.DB) fiber.Handler {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Invalid user role type"})
 		}
 
-		if role != "agent" && role != "head_guest" {
+		if role != "agent" && role != "event_manager" {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
 		}
 
@@ -1033,9 +1033,11 @@ func AutoAllocateHandler(db *gorm.DB) fiber.Handler {
 		if role == "agent" && userUUID != event.AgentID {
 			tx.Rollback()
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
-		} else if role == "head_guest" && userUUID != event.HeadGuestID {
+		} else if role == "event_manager" && userUUID != event.EventManagerID {
 			tx.Rollback()
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{"error": "Not authorized"})
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Not authorized for this event",
+			})
 		}
 
 		// 3. Status Check (New Lifecycle)

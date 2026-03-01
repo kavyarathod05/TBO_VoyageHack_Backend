@@ -8,14 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// User represents a registered user (Head Guest or Agent)
+// User represents a registered user (Event Manager or Agent)
 type User struct {
 	ID           uuid.UUID    `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	Name         string       `json:"name"`
 	Email        string       `gorm:"uniqueIndex;not null" json:"email"`
 	PasswordHash string       `gorm:"not null" json:"-"` // For custom auth
 	Phone        string       `json:"phone"`
-	Role         string       `gorm:"default:'head_guest'" json:"role"` // 'agent', 'head_guest', 'tbo_agent'
+	Role         string       `gorm:"default:'event_manager'" json:"role"` // 'agent', 'event_manager', 'tbo_agent'
 	AgentProfile AgentProfile `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"agent_profile"`
 }
 
@@ -54,7 +54,7 @@ func (g *Guest) BeforeSave(tx *gorm.DB) (err error) {
 type Event struct {
 	ID             uuid.UUID      `gorm:"type:uuid;primary_key;default:gen_random_uuid()" json:"id"`
 	AgentID        uuid.UUID      `gorm:"type:uuid;index" json:"agent_id"`
-	HeadGuestID    uuid.UUID      `gorm:"type:uuid;index" json:"head_guest_id"`
+	EventManagerID uuid.UUID      `gorm:"type:uuid;index" json:"event_manager_id"`
 	HotelID        string         `gorm:"index" json:"hotel_id"`
 	Name           string         `gorm:"not null" json:"name"`
 	Location       string         `json:"location"`
@@ -174,5 +174,5 @@ type GuestAllocation struct {
 	// The Logic Columns
 	LockedPrice  float64 `gorm:"type:decimal(10,2)" json:"locked_price"`      // Audit - price locked at allocation
 	Status       string  `gorm:"default:'allocated'" json:"status"`           // 'allocated', 'checked_in', 'checked_out', 'cancelled'
-	AssignedMode string  `gorm:"default:'agent_manual'" json:"assigned_mode"` // 'agent_manual', 'head_guest_manual'
+	AssignedMode string  `gorm:"default:'agent_manual'" json:"assigned_mode"` // 'agent_manual', 'event_manager_manual'
 }

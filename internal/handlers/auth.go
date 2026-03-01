@@ -101,10 +101,10 @@ func (r *Repository) LoginHandler(c *fiber.Ctx) error {
 		},
 	}
 
-	// If Head Guest, fetch their Event ID
-	if user.Role == "head_guest" {
+	// If Event Manager, fetch their Event ID
+	if user.Role == "event_manager" {
 		var event models.Event
-		if err := r.DB.Where("head_guest_id = ?", user.ID).First(&event).Error; err == nil {
+		if err := r.DB.Where("event_manager_id = ?", user.ID).First(&event).Error; err == nil {
 			response["eventId"] = event.ID
 		}
 	}

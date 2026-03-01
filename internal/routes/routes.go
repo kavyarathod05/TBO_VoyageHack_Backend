@@ -59,7 +59,7 @@ func SetupRoutes(app *fiber.App, cfg *config.Config, repo *handlers.Repository) 
 	events.Post("/:id/guests", repo.CreateGuest)
 	events.Post("/:id/auto-allocate", repo.AutoAllocate)
 	events.Get("/:id/guests", repo.GetGuests)
-	events.Post("/:id/head-guest", repo.AssignHeadGuest)
+	events.Post("/:id/event-manager", repo.AssignEventManager)
 	events.Post("/:id/send-invites", repo.SendInvites) // New route
 	events.Post("/:id/finalize", repo.FinalizeRooms)
 	events.Post("/:id/reopen", repo.ReopenAllocation)
