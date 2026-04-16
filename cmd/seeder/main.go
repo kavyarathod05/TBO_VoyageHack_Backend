@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/akashtripathi12/TBO_Backend/internal/models"
@@ -32,7 +33,7 @@ func main() {
 		log.Println("⚠️  No .env file found, relying on environment variables")
 	}
 
-	store.InitDB()
+	store.InitDB(os.Getenv("DATABASE_URL"))
 	db := store.DB
 
 	// 1. Full Database Reset

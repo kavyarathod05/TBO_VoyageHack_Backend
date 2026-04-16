@@ -10,6 +10,7 @@ import (
 	"github.com/joho/godotenv"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm/logger"
+	"os"
 )
 
 func main() {
@@ -17,7 +18,7 @@ func main() {
 		log.Println("Warning: .env file not found")
 	}
 
-	store.InitDB()
+	store.InitDB(os.Getenv("DATABASE_URL"))
 	db := store.DB
 	db.Logger = logger.Default.LogMode(logger.Silent)
 
