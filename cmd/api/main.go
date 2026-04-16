@@ -26,46 +26,53 @@ func main() {
 	store.InitDB()
 	log.Println("✅ DB Connected")
 
-	// Initialize Redis
-	store.InitRedis(cfg)
+	var client *asynq.Client
+	var srv *asynq.Server
+	var mux *asynq.ServeMux
 
-	// --- Asynq Redis Config (Using cfg!) ---
-	// Make sure your config.go maps REDIS_URL to cfg.RedisAddr
-	redisOpt, err := asynq.ParseRedisURI(cfg.RedisAddr)
-	if err != nil {
-		log.Fatalf("❌ Invalid Redis URL: %v", err)
+	// Initialize Redis & Asynq only if RedisAddr is provided
+	if cfg.RedisAddr != "" && cfg.RedisAddr != "none" {
+		// Initialize Redis
+		store.InitRedis(cfg)
+
+		// --- Asynq Redis Config ---
+		redisOpt, err := asynq.ParseRedisURI(cfg.RedisAddr)
+		if err != nil {
+			log.Fatalf("❌ Invalid Redis URL: %v", err)
+		}
+
+		// Initialize Asynq Client (Producer)
+		client = asynq.NewClient(redisOpt)
+
+		// Initialize Asynq Server (Consumer)
+		srv = asynq.NewServer(
+			redisOpt,
+			asynq.Config{
+				Concurrency: 5,
+				Queues: map[string]int{
+					"default": 10,
+				},
+			},
+		)
+
+		// Register Task Handlers
+		handler := &queue.TaskHandler{Cfg: cfg}
+		mux = asynq.NewServeMux()
+		mux.HandleFunc(queue.TypeEmailDelivery, handler.HandleEmailTask)
+
+		// Run Worker in Background
+		go func() {
+			log.Println("👷 Asynq Worker Server Starting...")
+			if err := srv.Run(mux); err != nil {
+				log.Printf("❌ Asynq Server Failed: %v", err)
+			}
+		}()
+	} else {
+		log.Println("⚠️ REDIS_URL not provided. Redis and Background Worker (Asynq) are DISABLED.")
 	}
 
-	// Initialize Asynq Client (Producer)
-	client := asynq.NewClient(redisOpt)
-	defer client.Close()
-
-	// Initialize Repository with Queue Client
+	// Initialize Repository with Queue Client (may be nil)
 	repo := handlers.NewRepository(cfg, store.DB, client)
-
-	// Initialize Asynq Server (Consumer)
-	srv := asynq.NewServer(
-		redisOpt,
-		asynq.Config{
-			Concurrency: 5,
-			Queues: map[string]int{
-				"default": 10,
-			},
-		},
-	)
-
-	// Register Task Handlers
-	handler := &queue.TaskHandler{Cfg: cfg}
-	mux := asynq.NewServeMux()
-	mux.HandleFunc(queue.TypeEmailDelivery, handler.HandleEmailTask)
-
-	// Run Worker in Background
-	go func() {
-		log.Println("👷 Asynq Worker Server Starting...")
-		if err := srv.Run(mux); err != nil {
-			log.Printf("❌ Asynq Server Failed: %v", err)
-		}
-	}()
 
 	app := fiber.New()
 

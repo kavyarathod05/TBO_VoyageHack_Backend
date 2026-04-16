@@ -93,13 +93,16 @@ func (m *Repository) SendInvites(c *fiber.Ctx) error {
 		}
 
 		// Enqueue Task
-		_, err = m.QueueClient.Enqueue(task)
-		if err != nil {
-			log.Printf("❌ Failed to enqueue email task: %v", err)
-			continue
+		if m.QueueClient != nil {
+			_, err = m.QueueClient.Enqueue(task)
+			if err != nil {
+				log.Printf("❌ Failed to enqueue email task: %v", err)
+				continue
+			}
+			queuedCount++
+		} else {
+			log.Printf("⚠️ Queue disabled - Email skipped for: %s", targetGuest.Email)
 		}
-
-		queuedCount++
 	}
 
 	return utils.SuccessResponse(c, fiber.StatusOK, fiber.Map{

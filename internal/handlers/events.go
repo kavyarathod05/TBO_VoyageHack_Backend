@@ -780,10 +780,12 @@ func (m *Repository) AssignEventManager(c *fiber.Ctx) error {
 		`, event.Name, user.Email, tempPassword)
 
 		task, err := queue.NewEmailTask(user.Email, subject, body)
-		if err == nil && m.QueueClient != nil {
-			m.QueueClient.Enqueue(task)
-		} else if err != nil {
+		if err != nil {
 			log.Printf("❌ Failed to create email task: %v", err)
+		} else if m.QueueClient != nil {
+			m.QueueClient.Enqueue(task)
+		} else {
+			log.Printf("⚠️ Queue disabled - Email skipped for event manager: %s", user.Email)
 		}
 	}
 

@@ -55,11 +55,8 @@ func Load() *Config {
 
 	// --- 2. Parse Redis Connection (For Render / Cloud) ---
 	// Cloud providers inject REDIS_URL. We use this instead of REDIS_ADDR.
+	// If REDIS_URL is empty or "none", Redis-dependent features will be disabled.
 	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		// Fallback for local terminal testing
-		redisURL = "redis://127.0.0.1:6379"
-	}
 
 	return &Config{
 		Port:            ":" + port,
