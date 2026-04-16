@@ -3,7 +3,7 @@ services:
   - type: web
     name: tbo-backend
     runtime: go
-    buildCommand: go build -o api ./cmd/api
+    buildCommand: go build -o api ./main.go
     startCommand: ./api
     plan: free # Change to starter/pro for production
     envVars:
