@@ -12,20 +12,10 @@ services:
       - key: ENV
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: tbo-db
-          property: connectionString
+        value: "postgresql://postgres.qxucskcqnzpalfvsyyak:8FhNNBN5N3BWxqBn@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
       - key: ALLOWED_ORIGINS
-        value: "http://localhost:3000, https://tbo-voyage-hack-frontend.vercel.app" # Added Vercel URL
+        value: "http://localhost:3000, https://tbo-voyage-hack-frontend.vercel.app"
       - key: FRONTEND_URL
         value: "https://tbo-voyage-hack-frontend.vercel.app"
       - key: REDIS_URL
-        value: "none" # Disables Redis/Asynq
-
-databases:
-  # 2. PostgreSQL (v16)
-  - name: tbo-db
-    plan: free # Change to starter/pro for production
-    databaseName: tbo_db
-    user: tbo_user
-    ipAllowList: [] # Adjust as needed
+        value: "none"

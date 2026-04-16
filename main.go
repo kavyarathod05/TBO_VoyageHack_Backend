@@ -23,7 +23,7 @@ func main() {
 	cfg := config.Load()
 
 	// Initialize Store
-	store.InitDB()
+	store.InitDB(cfg.DatabaseURL)
 	log.Println("✅ DB Connected")
 
 	var client *asynq.Client

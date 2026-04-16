@@ -21,6 +21,7 @@ type Config struct {
 	RedisPass       string
 	RedisDB         int
 	GoogleScriptURL string
+	DatabaseURL     string
 }
 
 func Load() *Config {
@@ -72,6 +73,7 @@ func Load() *Config {
 		RedisPass:       os.Getenv("REDIS_PASS"),
 		RedisDB:         getEnvInt("REDIS_DB", 0),
 		GoogleScriptURL: os.Getenv("GOOGLE_SCRIPT_URL"),
+		DatabaseURL:     os.Getenv("DATABASE_URL"),
 	}
 }
 

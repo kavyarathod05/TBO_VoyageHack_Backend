@@ -10,14 +10,16 @@ import (
 
 var DB *gorm.DB
 
-func InitDB() {
-	dsn := os.Getenv("DATABASE_URL")
+func InitDB(dsn string) {
+	if dsn == "" {
+		log.Fatal("❌ DATABASE_URL is required but was not provided.")
+	}
 
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("❌ Failed to connect to database: %v", err)
 	}
 
 	log.Println("✅ Connected to Supabase")
